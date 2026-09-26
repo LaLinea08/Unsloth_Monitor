@@ -66,9 +66,21 @@ controlled accuracy, performance, or full desktop acceptance test. The installed
 Unsloth version and new activity endpoint were not identified by that screenshot.
 
 Local validation for this update: **219 passed, one Linux-only test skipped**
-on Windows/Python 3.14.6; Ruff passed. Packaged Linux and desktop handoff results
-are pending the new CI run. The controlled handoff uses a fixture terminal and
-does not establish native Konsole/Wayland behavior.
+on Windows/Python 3.14.6; Ruff passed. Linux CI at `8984641` passed **220 tests**
+on Python 3.11.16 and 3.14.7, source terminal and desktop handoff smokes, packaged
+terminal launch, and actual AppImage extract-and-run handoff. The controlled
+handoff uses a fixture terminal and does not establish native Konsole/Wayland
+behavior. [Build 36267312541](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36267312541)
+published [the new AppImage](https://github.com/LaLinea08/Unsloth_Monitor/releases/tag/dev-8984641e3dd4-36267312541).
+Its SHA-256 is `12445f70db019877ff331ae0284f5c469702b93bc87cb080906aa38b3e00748a`;
+size 21,953,016 bytes. Downloaded build artifact and release asset digest agree.
+The actual 100×32 CI capture was reconstructed with ANSI colors and inspected;
+no layout overlap or clipping was observed.
+
+Normal synthetic-PTY observation averaged 22.15 MiB process-tree RSS / 0.169% of
+one logical CPU; quiet mode 22.14 MiB / 0.034%. Both observed 59.24 s after 10 s
+warm-up, one process and clean exit. This excludes real terminal rendering and
+does not establish target-machine inference overhead.
 
 ## Actual evidence
 
@@ -154,15 +166,14 @@ notes. Neither publication nor CI success establishes target-desktop acceptance.
 
 ## Next concrete action
 
-On the **Fedora development computer**, from a complete checkout:
+On CachyOS, download the new AppImage, mark it executable once, and double-click
+it. Verify that your normal terminal opens, colors remain readable in your
+profile, and closing the terminal stops the monitor. Press `d` to inspect the
+new activity fields; if authentication is required, enter a Studio token or
+API key locally with `s`. Treat operation labels as in-flight work, not proof
+of model residency. Record the installed Unsloth version alongside any result.
 
-```bash
-python3 scripts/diagnose.py
-```
-
-Python 3.11+ and the standard library suffice. The script reads selected hardware,
-makes bounded liveness and optional activity GETs, writes no files itself,
-installs nothing, changes no settings, and sends no inference content. An offline Unsloth result is acceptable
-on Fedora. Review the output before sharing and record the Fedora/kernel/session
-versions. Keep later CachyOS results separate, then launch this same dashboard
-in the computer's normal terminal.
+Fedora diagnostic and performance acceptance remain separate tasks. The optional
+`python3 scripts/diagnose.py` reads selected local hardware plus bounded liveness
+and activity endpoints; it sends no prompts and writes no files itself. Keep
+results from the two computers separate.
