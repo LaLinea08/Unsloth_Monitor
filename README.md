@@ -15,11 +15,11 @@ See [current progress](docs/PROGRESS.md) for actual test/build results.
 
 ## Run on Linux
 
-The candidate AppImage bundles Python; users do not need pip or an environment.
-Download the [verified terminal candidate](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155/artifacts/10913450556)
-(temporary artifact; GitHub sign-in may be required), or a newer successful build from the
-[Linux package workflow](https://github.com/LaLinea08/Unsloth_Monitor/actions/workflows/linux-package.yml),
-verify its SHA256SUMS, then run **inside your terminal**:
+Download **Unsloth-Monitor-x86_64.AppImage** from
+[GitHub Releases](https://github.com/LaLinea08/Unsloth_Monitor/releases).
+That single file bundles Python; users do not need pip or an environment.
+Compare `sha256sum Unsloth-Monitor-x86_64.AppImage` with the checksum in the
+release notes, then run **inside your terminal**:
 
 ```sh
 chmod +x Unsloth-Monitor-x86_64.AppImage
@@ -27,11 +27,11 @@ chmod +x Unsloth-Monitor-x86_64.AppImage
 ```
 
 Every successful Linux package build on `main` or `codex/linux-prototype` now
-prepares a versioned draft development release with **one AppImage download**.
+automatically publishes a versioned development prerelease with **one AppImage download**.
 The checksum and test observations are in its notes; runtime notices are inside
-the AppImage. Public publication remains gated by the earlier license hold.
-Once enabled, downloads will be on [Releases](https://github.com/LaLinea08/Unsloth_Monitor/releases).
-The project license and Fedora/CachyOS acceptance remain pending.
+the AppImage. The owner explicitly authorized public development prereleases
+while keeping the project license undecided. Fedora/CachyOS and stable
+acceptance remain pending.
 [Installation and uninstall](docs/INSTALL.md) include the extraction
 fallback and optional menu launcher that opens your desktop's normal terminal.
 
