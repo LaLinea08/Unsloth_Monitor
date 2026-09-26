@@ -67,11 +67,30 @@ files, drivers or other applications' configuration belong to this monitor.
 
 ## Rebuilding
 
+The Linux package workflow runs on every push to `main` or
+`codex/linux-prototype`, and manual runs on those branches. After lint, tests,
+packaged terminal launch and resource observations pass, a separate job prepares
+a draft development prerelease with one `Unsloth-Monitor-x86_64.AppImage` asset.
+Its notes contain the checksum, source commit, build link and test observations.
+GitHub also provides optional source archives; they are not needed to run the app.
+
+Public publication is gated by the repository Actions variable
+`RELEASE_PUBLICATION_APPROVED`. It must remain unset until the owner explicitly
+resolves the license hold. Setting it to `true` after approval enables automatic
+prerelease publication. Each tag includes its source commit and workflow run ID;
+reruns verify an existing release rather than replacing earlier downloads.
+Successful drafts can be finalized by rerunning the publication job after the
+gate is approved. A full rebuild can produce a different hash and must use a
+new workflow run instead of overwriting an earlier asset.
+
 Use the isolated developer environment from README.md. PyInstaller creates an
 onedir payload; appimagetool 1.9.1 wraps it. Both the packager and runtime are
 checksum-verified. The runtime upstream URL uses a rolling tag with a fixed
 digest: changed upstream assets cause a build failure until deliberately reviewed.
-The builder creates a fresh AppDir each time and commits no binaries.
+The builder creates a fresh AppDir each time and commits no binaries. It bundles
+runtime notices and source provenance at `usr/share/doc/unsloth-monitor/` inside
+the AppImage, including the AppImage runtime/libfuse/squashfuse source archives.
+See [third-party inventory](../packaging/THIRD-PARTY.md) for contents and limits.
 
 CI tests source and extracted packaged launches in a pseudoterminal, outside the
 checkout and without development PYTHONPATH/VIRTUAL_ENV. This exercises curses

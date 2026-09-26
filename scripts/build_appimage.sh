@@ -15,6 +15,7 @@ chmod +x "$appdir/AppRun"
 cp packaging/unsloth-monitor.desktop "$appdir/"
 cp src/unsloth_monitor/assets/unsloth-monitor.svg "$appdir/"
 cp src/unsloth_monitor/assets/unsloth-monitor.svg "$appdir/.DirIcon"
+python scripts/bundle_notices.py --appdir "$appdir"
 # Executable tooling must be fetched and checksum-verified explicitly by CI.
 : "${APPIMAGETOOL:?Set APPIMAGETOOL to the verified extracted appimagetool AppRun}"
 : "${APPIMAGE_RUNTIME:?Set APPIMAGE_RUNTIME to the checksum-verified x86_64 runtime}"

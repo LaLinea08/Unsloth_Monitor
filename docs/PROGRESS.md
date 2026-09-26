@@ -1,7 +1,9 @@
 # Project progress
 
 Updated: 2026-09-26. License: **undecided**, as explicitly requested by the user.
-No public release is authorized while the license remains undecided.
+Public publication remains gated pending explicit resolution of the earlier
+license hold. The user subsequently requested automatic single-download
+releases; the workflow now prepares verified draft development prereleases.
 
 ## Current direction
 
@@ -89,7 +91,7 @@ Qt. The final terminal candidate at `abc2b39` is 17,132,024 bytes with SHA-256
 [download candidate artifact](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155/artifacts/10913450556)
 (14-day retention, GitHub sign-in may be required). SHA256SUMS was corrected to
 verify from the artifact directory. Source is in
-[draft PR #1](https://github.com/LaLinea08/Unsloth_Monitor/pull/1).
+[merged PR #1](https://github.com/LaLinea08/Unsloth_Monitor/pull/1).
 This is a CI candidate, not actual target-desktop acceptance. Release remains
 blocked on license confirmation and real-machine acceptance.
 

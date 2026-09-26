@@ -26,15 +26,19 @@ chmod +x Unsloth-Monitor-x86_64.AppImage
 ./Unsloth-Monitor-x86_64.AppImage
 ```
 
-Artifacts are temporary development builds. No public release is published:
-the owner has left the license undecided, and Fedora/CachyOS acceptance remains
-pending. [Installation and uninstall](docs/INSTALL.md) include the extraction
+Every successful Linux package build on `main` or `codex/linux-prototype` now
+prepares a versioned draft development release with **one AppImage download**.
+The checksum and test observations are in its notes; runtime notices are inside
+the AppImage. Public publication remains gated by the earlier license hold.
+Once enabled, downloads will be on [Releases](https://github.com/LaLinea08/Unsloth_Monitor/releases).
+The project license and Fedora/CachyOS acceptance remain pending.
+[Installation and uninstall](docs/INSTALL.md) include the extraction
 fallback and optional menu launcher that opens your desktop's normal terminal.
 
 For source development (Python 3.11–3.14; no application dependencies):
 
 ```sh
-git clone --branch codex/linux-prototype https://github.com/LaLinea08/Unsloth_Monitor.git
+git clone https://github.com/LaLinea08/Unsloth_Monitor.git
 cd Unsloth_Monitor
 python3 -m venv .venv
 . .venv/bin/activate
@@ -42,8 +46,8 @@ python -m pip install -e .
 python -m unsloth_monitor
 ```
 
-Use the development branch until the prototype PR is merged. Run on the same
-computer as Unsloth: `127.0.0.1:8888` refers to the computer running the monitor.
+Run on the same computer as Unsloth: `127.0.0.1:8888` refers to the computer
+running the monitor.
 Endpoint and refresh settings are editable in the terminal; tokens are session-only.
 
 ## What it shows
