@@ -1,37 +1,40 @@
 # Linux-first roadmap
 
-The current deliverable is a runnable native prototype and its source/tests.
-The first milestone is not complete until it runs on the actual Fedora computer
-and its preliminary overhead has been measured there.
+The user has explicitly selected an application inside the computer's normal
+terminal. This supersedes the original Qt-window requirement. The current
+deliverable is a curses dashboard, shared passive runtime, source, and tests;
+the first milestone still requires actual Fedora execution and measurements.
 
-1. **Fedora prototype acceptance.** Run the read-only diagnostic, record exact
-   OS/kernel/display-session versions, verify CPU/RAM/uptime and the discovered
-   AMD GPU, launch the native dashboard with Unsloth offline, verify shutdown and
-   duplicate prevention, and measure visible/minimized overhead. Fix evidence-
-   based collector or layout problems before adding optional features.
-2. **CachyOS verification.** Run the same application locally beside Unsloth.
-   Record installed Unsloth version, actual loopback endpoint, authentication,
-   driver readings, liveness behavior, starts/restarts, and KDE/Wayland behavior.
-   Keep this record separate from Fedora. Remote monitoring is not required.
-3. **Additional verified telemetry.** Add residency or request metrics only
-   after checking a passive, content-free source and its overhead on the
-   installed version. Define scope and units first; unavailable fields remain
-   unavailable until trustworthy evidence exists. Never infer generation from
-   GPU load or loaded models from a catalog.
-4. **Linux package and acceptance.** Build the Ubuntu 22.04 x86_64 AppImage
-   candidate; validate the extracted payload and actual portable launch without
-   a development environment. Test fonts, Qt plugins, networking, sensors,
-   Wayland and X11 where available. Run packaged overhead and long-session
-   checks on CachyOS. Inference comparisons require separate explicit approval.
-5. **Publication.** Confirm the project license, complete real-machine package
-   acceptance, choose the primary download, and publish an authorized release.
-   The license remains undecided, so public release is blocked. Keep binaries
-   in workflow artifacts/release assets rather than the source repository.
-6. **Later expansion.** Broaden tested Linux distributions, consider multiple-GPU
-   views and additional vendors, then implement Windows telemetry and packaging.
-   Measure Windows independently before advertising support. Flatpak or native
-   distribution packages need their own permission and telemetry validation.
+1. **Fedora terminal prototype acceptance.** Run the read-only diagnostic and
+   record exact OS/kernel/terminal/display-session versions. Verify hardware
+   readings, launch in the normal terminal with Unsloth offline, exercise
+   keyboard controls, resize/scroll, quiet mode, source details, duplicate
+   prevention, and clean terminal restoration. Measure monitor and incremental
+   terminal-emulator overhead.
+2. **CachyOS verification.** Run the same application directly beside Unsloth.
+   Record installed Unsloth version, actual loopback endpoint/authentication,
+   GPU readings, liveness starts/restarts, and normal CachyOS terminal behavior.
+   Keep results separate from Fedora. No remote exposure is required.
+3. **Additional verified telemetry.** Add model residency or request metrics only
+   after validating a passive, content-free source and its overhead against the
+   installed version. Define scope and units first. GPU load is not generation;
+   a model catalog is not residency.
+4. **Linux package acceptance.** The Ubuntu 22.04 x86_64 AppImage candidate now
+   builds and its bundled runtime launches in a CI pseudo-terminal. Next test
+   ordinary AppImage launch in a real terminal without development Python.
+   Check curses/terminfo, host terminal integration, networking, sensors,
+   keyboard input, and restoration on exit. Validate both target desktops,
+   packaged overhead, and hours-long operation. Inference comparisons need
+   separate explicit approval.
+5. **Publication.** Confirm the license, complete real-machine acceptance, and
+   publish an authorized release with one clear primary download. The license
+   remains undecided, so public release is blocked. Keep binaries in workflow
+   artifacts/release assets rather than the source repository.
+6. **Later expansion.** Broaden tested distributions and terminals, consider
+   additional GPU vendors and multiple-GPU selection, then implement and test
+   Windows telemetry/terminal packaging. Measure Windows independently before
+   advertising support. Other package formats need their own validation.
 
-No milestone introduces automatic startup, a background service, model loading,
-inference requests for monitoring, privileged sensor access, or hardware changes.
-Windows work must not delay a useful tested Linux release.
+No milestone adds automatic startup, services, privileged sensor access,
+hardware changes, model loads, or inference requests for monitoring. Windows
+work must not delay a useful validated Linux version.

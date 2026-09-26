@@ -1,87 +1,89 @@
 # Architecture
 
-Unsloth Monitor is a manually launched Python/PySide6 application built with
-native Qt widgets. The first implementation targets Linux x86_64. The shared
-interface can execute on the Windows development host, but Windows hardware
-collection is explicitly unsupported.
+Unsloth Monitor runs **inside the user's normal terminal**. This follows the
+user's later clarification and supersedes the original Qt-window requirement.
+Python curses controls text placement and keyboard input; the terminal emulator
+supplies its existing font, foreground, background, and transparency. The app
+defines no color pairs or fixed theme and starts no terminal emulator itself.
 
 ```mermaid
 flowchart LR
-    Qt[Qt widget dashboard] <--> Controller[GUI controller]
-    Controller --> HW[Hardware worker]
-    Controller --> Net[Network worker]
+    TUI[Terminal dashboard] <--> Runtime[Monitor runtime]
+    Runtime --> HW[Hardware worker]
+    Runtime --> Net[Network worker]
     HW --> Linux[Bounded procfs and sysfs reads]
     Net --> API[Local GET /api/liveness]
     HW --> HResult[One replaceable hardware result]
     Net --> NResult[One replaceable connection result]
-    HResult --> Controller
-    NResult --> Controller
+    HResult --> Runtime
+    NResult --> Runtime
 ```
 
 ## Responsibilities
 
 | Module | Responsibility |
 | --- | --- |
-| `metrics.py` | Shared readings and snapshots: value, unit, source, timestamp, explicit availability |
-| `collectors/` | Platform selection and Linux discovery/collection; no Qt or network dependency |
-| `integration/client.py` | Validated local endpoint, bounded passive HTTP, response classification |
-| `polling.py` | One worker thread and one replaceable result slot per source |
-| `app.py` | Lifecycle, configuration revision, refresh policy, stale readings, process lock |
-| `settings.py` | Bounded preference loading and replacement of non-secret preferences |
-| `ui/dashboard.py` | Native widgets, formatting, source tooltips, settings dialog |
+| `metrics.py` | Reading value, unit, source, observation timestamp, and availability |
+| `collectors/` | Platform selection and Linux hardware collection |
+| `integration/client.py` | Validated loopback endpoint, bounded passive HTTP, response classification |
+| `polling.py` | One thread and one replaceable result slot per source |
+| `runtime.py` | Hardware/network coordination, configuration revision, quiet policy, stale state, cleanup |
+| `terminal.py` | Pure bounded renderer, curses view, keyboard settings and source details |
+| `settings.py` | Bounded loading and replacement of non-secret preferences |
+| `instance.py` and `app.py` | Linux process locking, manual launch, signal handling, terminal lifecycle |
 
-The hardware collector runs independently of network access. Neither collector
-runs on the GUI thread. No web server, browser runtime, ML framework, model load,
-GPU compute context, proxy, inference request, or inference log reader is part
-of the application. See [hardware semantics](HARDWARE.md) and the
-[telemetry contract](TELEMETRY.md) for exactly what each adapter reads.
+Hardware and network collection run independently, off the terminal input loop.
+No Qt, browser, web server, ML framework, GPU compute context, proxy, model load,
+or inference request is part of the application. See [HARDWARE.md](HARDWARE.md)
+and [TELEMETRY.md](TELEMETRY.md) for the exact read-only sources.
 
-## Polling and retained state
+## Scheduling and state
 
-Both workers start immediately. The default interval is five seconds **after
-the preceding collection completes**, so the observed interval includes work
-duration. Settings offer 2, 5, 10, or 15 seconds. Failed network polls back off to
-30 seconds; at the default interval the waits are 5, 10, 20, then 30 seconds.
-Each HTTP poll has a two-second overall budget. Allow up to roughly 30 seconds
-plus two seconds of request time and 0.5 seconds for visible UI consumption when
-detecting a service that starts during backoff. These are scheduler expectations,
-not an end-to-end measurement on the user's installation.
+Workers start immediately. The default interval is five seconds after the
+preceding collection completes. Settings offer 2, 5, 10, or 15 seconds. At the
+default interval, failed network checks wait 5, 10, 20, then 30 seconds. Each
+HTTP poll has a two-second overall budget. A service starting during backoff can
+therefore take approximately 30 seconds plus two seconds of request time and
+0.5 seconds for display consumption to appear. This is a scheduling expectation,
+not a measurement on the user's Unsloth installation.
 
-A worker never overlaps its own polls. Refresh requests coalesce in an event;
-there is no unbounded task queue. Its single result slot replaces unread results.
-Discovery and static hardware identity are cached. Only current readings and
-the last displayed snapshots are retained; no history, graphs, sample database,
-or periodic sample log is maintained.
+A worker never overlaps its own polls. Refresh events coalesce, and each source
+has a single replaceable result slot rather than an executor queue. Hardware
+discovery is cached. Only current/last snapshots are retained: no unbounded
+history, charts, sample database, or periodic sample log exists. The curses view
+checks updates at most twice a second and does not redraw an unchanged frame.
 
-Minimizing sets both collection intervals to 30 seconds and suppresses dashboard
-updates. The controller timer slows from 0.5 to five seconds. Restoring the window
-wakes both workers for a new sample and consumes any retained result without
-resetting its observation age. There are no hidden animations or tray mode.
+The terminal cannot reliably detect when its emulator window is minimized.
+Press `p` for explicit quiet mode with 30-second polling, or `p` again to
+resume normal polling. `r` requests a refresh. Quiet mode still displays new
+results; it does not reset their observation time. Stale available hardware
+readings are marked stale, and stale connection checks clear displayed telemetry.
+Configuration revisions discard late results from an old endpoint.
 
-Available hardware values become stale after `max(15, 3 × visible interval)`
-seconds without a fresh snapshot. A connection snapshot older than 40 seconds
-becomes a stale connection check and clears displayed telemetry. A failed
-connection result likewise supplies explicit unavailable fields. Configuration
-revisions prevent an old request from overwriting a newly selected endpoint.
+The viewport is bounded to the terminal size. Narrow terminals stack model and
+inference sections and can scroll with arrows/Page Up/Page Down. `d` exposes
+sources, units, timestamps, and states. Control and bidirectional format
+characters from readings are removed before rendering. Unknown metrics display
+explicit missing states and question-mark bars rather than a zero reading.
 
-## Launch, shutdown, and preferences
+## Configuration and exit
 
-Qt's configuration directory holds only endpoint/refresh preferences and a
-`QLockFile` process lock. Normal launches sharing that directory cannot create a
-second instance. `--config-dir` deliberately permits isolated validation runs.
-Bearer tokens remain session-only; response bodies and raw exception strings
-are not displayed or logged. Preference files have an 8 KiB load limit. Writes
-replace a temporary file, and a save failure still permits session-only changes.
+Preferences live under the absolute `XDG_CONFIG_HOME`, or `~/.config` when
+unset, in `unsloth-monitor/`. Linux advisory locking prevents duplicates sharing
+that configuration. `--config-dir` intentionally enables isolated validation
+runs. Preferences contain only the loopback URL and polling interval; tokens
+remain session-only. The settings editor never echoes a token, bounds URL/token
+input, and permits cancellation. Failed saving leaves accepted changes active
+for the current session. Preference loading is limited to 8 KiB.
 
-Closing the window stops both workers, wakes their polling waits, waits
-asynchronously for cleanup, then closes the window and releases the process
-lock. The UI remains responsive during this wait. The final cleanup joins both
-threads; there is no intentional orphan or hidden background mode. No startup
-entry, scheduled launch, system service, driver installation, or hardware-setting
-write is created.
+`q`, Ctrl-C, SIGTERM, and SIGHUP stop collection and release the lock. The view
+shows a stopping message, and curses restores terminal state as it exits.
+Shutdown closes the network client and joins workers. There is no background
+service, tray persistence, automatic startup, privileged access, or hardware
+configuration write.
 
-Network collection is bounded. Linux driver-backed file reads have no general
-userspace timeout: a broken driver can leave a hardware worker blocked in a
-kernel read. The window remains responsive, but clean shutdown can then wait
-indefinitely. This residual risk has not been reproduced or excluded on the
-target computers; process isolation would need evaluation if it occurs.
+Network I/O has a deadline. Driver-backed Linux file reads have no general
+userspace timeout: a faulty driver can leave hardware collection blocked in a
+kernel read, and clean shutdown can then wait indefinitely. This residual risk
+has not been reproduced or excluded on the target computers. Process isolation
+would need evaluation if it occurs.

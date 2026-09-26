@@ -1,61 +1,69 @@
 # Compatibility and validation
 
-Linux is the target; no Linux distribution or GPU has yet been validated on an
-actual target machine. Expected compatibility must not be read as a tested claim.
-The Fedora and CachyOS computers are separate systems, and localhost always
-refers to the computer running the monitor.
+The current application is a Linux terminal dashboard. The user's later request
+to use the computer's normal terminal supersedes the earlier graphical Qt design.
+It inherits that terminal's appearance; it does not recreate a particular
+CachyOS theme. No actual target Linux computer has yet been validated.
 
 | Environment | What actually ran | Status |
 | --- | --- | --- |
-| Windows 11, build 26200, AMD64; CPython 3.14.6; PySide6/Qt 6.11.2 | Fixture tests, synthetic local HTTP tests, offscreen Qt lifecycle/layout, actual duplicate-process locking and shutdown | Development validation only; hardware sensors deliberately unsupported |
-| Fedora; Ryzen 7 9800X3D; Radeon RX 9070 XT | Nothing on this separate computer yet | Target hardware supplied by user; OS/kernel/session versions and readings unverified |
-| CachyOS; KDE Plasma/Wayland; Ryzen 5 5600X; Radeon RX 9060 XT 16 GB; 16 GB RAM | Nothing on this separate computer yet | Primary Unsloth and packaged-performance target; installed versions, API/auth and readings unverified |
-| Ubuntu 22.04 x86_64 CI; Python 3.11 and 3.14 | Workflow configuration prepared | CI results pending; a headless pass would validate tests only |
-| Ubuntu 22.04 x86_64 AppImage baseline; Python 3.11 | Build and extracted-payload smoke workflow prepared | No successful package build or real desktop launch established |
-| Other Fedora/Arch/CachyOS/Ubuntu/Debian versions and derivatives | No execution yet | Expected candidates only where runtime/driver requirements are met |
-| Windows packaged application; other architectures | No build or telemetry implementation | Unsupported in this phase |
+| Windows 11 build 26200, AMD64; CPython 3.14.6 | Hardware fixtures, local HTTP fixtures, pure terminal rendering, simulated keyboard and runtime tests | Development validation only; interactive application and hardware telemetry are unsupported on Windows |
+| Fedora; Ryzen 7 9800X3D; Radeon RX 9070 XT | Nothing on this separate computer yet | User-provided target hardware; exact OS/kernel/session and readings unverified |
+| CachyOS; KDE Plasma/Wayland; Ryzen 5 5600X; Radeon RX 9060 XT 16 GB; 16 GB RAM | Nothing on this separate computer yet | Primary Unsloth and packaged-performance target; versions, API/auth, and readings unverified |
+| Ubuntu 22.04 x86_64 CI; Python 3.11.16 and 3.14.7 | 113 tests passed on each Python; actual curses source launch in a pseudo-terminal passed | Linux CI verified; target GPU and visible emulator behavior remain unverified |
+| Ubuntu 22.04 x86_64 AppImage baseline; Python 3.11 | AppImage built; extracted bundled payload launched through actual curses in a pseudo-terminal; no Qt in payload | Candidate package CI verified; normal AppImage mount/launch and target desktop acceptance remain pending |
+| Other Linux distributions or terminal emulators | No execution yet | Candidates for later validation; no universal compatibility claim |
+| Windows packaged app; other architectures | No terminal port/package validation | Unsupported in this phase |
 
-## Runtime and device limits
+Historical Qt 6.11.2 offscreen tests ran on the Windows host before the terminal
+request. They are evidence for a superseded implementation and must not be used
+as proof of current curses, terminal-emulator, or packaged compatibility.
 
-The proposed portable package uses an Ubuntu 22.04 build baseline and bundles
-Python/Qt. It is not universally compatible: systems with an older glibc than
-the build environment, non-glibc systems, and other architectures are outside
-the initial baseline. Newer distributions still need packaged validation for
-Qt platform plugins, host display libraries, networking, fonts, and sensors.
-An AppImage does not bundle the host kernel or GPU drivers. See
-[installation instructions](INSTALL.md) for host/runtime details.
+The terminal candidate at commit `edbd92d` passed
+[package workflow 36263567059](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36263567059).
+An extracted-payload launch proves the bundled terminal runtime runs in CI;
+it does not prove the AppImage mount path or actual target desktop integration.
 
-Wayland and X11 sessions must be tested separately. Offscreen Qt tests establish
-neither. On the initial Windows offscreen test host, setting
-`QT_QPA_FONTDIR=C:\Windows\Fonts` was needed to render real fonts in screenshots;
-this is a test-platform setting, not a Linux installation instruction.
+## Terminal and package requirements
 
-The current GPU adapter discovers AMD DRM cards, chooses the largest
-driver-reported VRAM capacity, and reads accessible sysfs/hwmon files. Intel and
-NVIDIA GPU telemetry and multiple-GPU selection are not implemented. CPU/RAM/
-uptime collection continues when GPU support or sensors are absent. GPU names
-can fall back to a verified PCI ID. Sensors denied to a normal user remain
-permission-denied; the app does not request privileged access. Restart after
-hardware hotplug or driver/sensor changes because discovery is cached.
+Launch inside an interactive terminal. The source version needs Python 3.11+
+with curses; the candidate AppImage is intended to bundle the runtime. The
+terminal's `TERM` setting and matching host terminfo entry must be available.
+There is no pinned font or palette. An optional desktop entry uses the desktop's
+normal terminal launcher, but actual desktop integration is still unverified.
+Wayland/X11 rendering belongs to the host terminal emulator and must still be
+checked on each target desktop. A Linux pseudo-terminal test has no visible
+emulator and cannot establish font, theme, or window behavior.
 
-Optional GPU inputs are skipped when runtime power state is suspended,
-transitional, unknown, unreadable, or erroneous. This does not prove zero idle
-power impact: actual driver behavior still needs measurement. Tctl can be a
-control-temperature value, APU VRAM is not independent dedicated RAM, and APU
-SoC power may include CPU power. Source tooltips preserve these distinctions.
+The portable build baseline is Ubuntu 22.04 x86_64. Systems with an older glibc
+than the build environment, non-glibc systems, and other architectures are
+outside the initial baseline. Newer distributions still need packaged testing
+for runtime libraries, curses/terminfo, networking, and sensors. AppImage does
+not bundle the host kernel or GPU drivers. See [INSTALL.md](INSTALL.md).
 
-## Unsloth limits
+## Device and integration limits
 
-The passive liveness contract was inspected in upstream source, not in either
-installed test machine. Only numeric loopback HTTP endpoints and `localhost`
-are supported. An installation without the source-verified liveness route is
-reported as unsupported; the monitor does not probe heavier endpoints instead.
-Model residency, quantization, context, backend, generation state, and token
-statistics remain unavailable through this adapter. See [TELEMETRY.md](TELEMETRY.md).
+The AMD adapter discovers DRM cards and selects the largest driver-reported
+VRAM capacity. Intel/NVIDIA GPU telemetry and multiple-GPU selection are not
+implemented. CPU/RAM/uptime continue when GPU or sensor support is absent.
+Names can fall back to a verified PCI ID. Inaccessible sensors remain denied;
+no privilege escalation is attempted. Restart after hardware hotplug or
+driver/sensor changes because discovery is cached.
 
-The immediate validation step is to run `python3 scripts/diagnose.py` from a
-complete checkout on Fedora. It uses Python 3.11+ and the standard library only,
-reads selected local metrics, and makes one bounded liveness GET. It installs
-nothing, sends no prompts, and changes no configuration. An offline Unsloth
-result on Fedora is acceptable. Record Fedora results separately; later run the
-same diagnostic directly on CachyOS beside its Unsloth installation.
+Runtime-state checks skip optional GPU sensors on suspended, transitional,
+unknown, erroneous, or unreadable states. This does not prove zero idle-power
+effect. Tctl may be a control temperature, APU VRAM is not separate dedicated
+RAM, and APU SoC power can include CPU power. Press `d` for source details.
+
+The passive Unsloth liveness contract was checked in upstream source, not in an
+installed target version. Only local HTTP loopback endpoints are accepted.
+Unsupported installations remain unsupported instead of triggering heavier
+endpoint probes. Model residency, quantization, context, backend, generation,
+and token statistics remain unavailable through this adapter. See
+[TELEMETRY.md](TELEMETRY.md).
+
+Next, run `python3 scripts/diagnose.py` from a complete checkout on Fedora.
+It needs Python 3.11+ and the standard library, installs nothing, changes no
+configuration, and sends no prompts. Unsloth offline on Fedora is acceptable.
+Later run it directly on CachyOS beside Unsloth; record the two machines
+separately. Localhost on Fedora never refers to the CachyOS computer.

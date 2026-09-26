@@ -30,7 +30,7 @@ the owner has left the license undecided, and Fedora/CachyOS acceptance remains
 pending. [Installation and uninstall](docs/INSTALL.md) include the extraction
 fallback and optional menu launcher that opens your desktop's normal terminal.
 
-For source development (Python3.11–3.14; no application dependencies):
+For source development (Python 3.11–3.14; no application dependencies):
 
 ```sh
 git clone --branch codex/linux-prototype https://github.com/LaLinea08/Unsloth_Monitor.git
@@ -53,7 +53,7 @@ Endpoint and refresh settings are editable in the terminal; tokens are session-o
 - Unsloth liveness, offline/authentication/unsupported-response states and
   automatic reconnect using bounded background workers.
 - Sources and availability details. Five-second default polling; explicit quiet
-  mode uses30 seconds. The app cannot reliably detect a minimized terminal.
+  mode uses 30 seconds. The app cannot reliably detect a minimized terminal.
 
 Model, quantization, context, backend and inference counters currently remain
 unavailable. The lightweight liveness endpoint does not expose them; other
@@ -74,7 +74,7 @@ python scripts/pty_smoke.py
 python3 scripts/diagnose.py
 ```
 
-The diagnostic needs only system Python3.11+ and this checkout. It reads local
+The diagnostic needs only system Python 3.11+ and this checkout. It reads local
 hardware and makes one bounded liveness GET; it installs nothing, sends no prompts
 and writes no files. Review its JSON before sharing.
 

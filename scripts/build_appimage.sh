@@ -19,4 +19,4 @@ cp src/unsloth_monitor/assets/unsloth-monitor.svg "$appdir/.DirIcon"
 : "${APPIMAGETOOL:?Set APPIMAGETOOL to the verified extracted appimagetool AppRun}"
 : "${APPIMAGE_RUNTIME:?Set APPIMAGE_RUNTIME to the checksum-verified x86_64 runtime}"
 ARCH=x86_64 "$APPIMAGETOOL" --runtime-file "$APPIMAGE_RUNTIME" "$appdir" dist/Unsloth-Monitor-x86_64.AppImage
-sha256sum dist/Unsloth-Monitor-x86_64.AppImage > dist/SHA256SUMS
+(cd dist && sha256sum Unsloth-Monitor-x86_64.AppImage) > dist/SHA256SUMS

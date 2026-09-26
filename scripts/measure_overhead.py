@@ -13,6 +13,25 @@ import time
 import psutil
 
 
+def _cleanup_owned_child(child, master=None, slave=None):
+    """Stop only our Popen child; an observed --pid is never passed here."""
+    try:
+        if child is not None and child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait(timeout=5)
+    finally:
+        try:
+            if slave is not None:
+                os.close(slave)
+        finally:
+            if master is not None:
+                os.close(master)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--duration", type=int, default=60)
@@ -31,28 +50,29 @@ def main():
     import pty
     import struct
     import termios
-    child, master = None, None
+    child, master, slave = None, None, None
     environment = dict(os.environ)
     environment["TERM"] = "xterm-256color"
     with tempfile.TemporaryDirectory(prefix="unsloth-monitor-measure-") as config:
         start = time.monotonic()
-        if args.pid:
-            process = psutil.Process(args.pid)
-        else:
-            master, slave = pty.openpty()
-            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 32, 100, 0, 0))
-            os.set_blocking(master, False)
-            command = [args.executable] if args.executable else [sys.executable, "-m", "unsloth_monitor"]
-            command += ["--config-dir", config, "--quit-after", str(args.warmup + args.duration + 3)]
-            if args.quiet:
-                command += ["--quiet"]
-            child = subprocess.Popen(command, env=environment, stdin=slave, stdout=slave,
-                                     stderr=slave, start_new_session=True)
-            os.close(slave)
-            process = psutil.Process(child.pid)
         memory, startup_memory, samples, seen, peak_processes = [], [], [], {}, 0
         baseline_cpu, baseline_time = None, None
         try:
+            if args.pid:
+                process = psutil.Process(args.pid)
+            else:
+                master, slave = pty.openpty()
+                fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 32, 100, 0, 0))
+                os.set_blocking(master, False)
+                command = [args.executable] if args.executable else [sys.executable, "-m", "unsloth_monitor"]
+                command += ["--config-dir", config, "--quit-after", str(args.warmup + args.duration + 3)]
+                if args.quiet:
+                    command += ["--quiet"]
+                child = subprocess.Popen(command, env=environment, stdin=slave, stdout=slave,
+                                         stderr=slave, start_new_session=True)
+                os.close(slave)
+                slave = None
+                process = psutil.Process(child.pid)
             while time.monotonic() - start < args.warmup + args.duration:
                 if not process.is_running() or (child and child.poll() is not None):
                     raise RuntimeError("Monitor exited before observation finished")
@@ -88,11 +108,7 @@ def main():
                 if child.returncode != 0:
                     raise RuntimeError("Monitor failed to exit cleanly")
         finally:
-            if child and child.poll() is None:
-                child.terminate()
-                child.wait(timeout=10)
-            if master is not None:
-                os.close(master)
+            _cleanup_owned_child(child, master, slave)
         end_time, end_cpu = samples[-1]
         print(json.dumps({
             "platform": platform.platform(), "observer_python": platform.python_version(),

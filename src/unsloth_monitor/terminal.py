@@ -324,6 +324,8 @@ class TerminalDashboard:
             pass
         try:
             while not self._expired():
+                # Input still wakes immediately; quiet mode reduces idle UI wakeups.
+                self.screen.timeout(2000 if self.controller.quiet else 500)
                 hardware, connection = self.controller.take_updates()
                 if hardware is not None:
                     self.hardware = hardware

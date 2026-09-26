@@ -13,15 +13,16 @@ and preliminary process observations. See PROGRESS.md for actual completed runs.
 From your normal terminal, after verifying the downloaded checksum:
 
 ```sh
+sha256sum -c SHA256SUMS
 chmod +x Unsloth-Monitor-x86_64.AppImage
 ./Unsloth-Monitor-x86_64.AppImage
 ```
 
 No installed Python/pip or development environment is needed. The candidate
-build baseline is Ubuntu22.04 x86_64/glibc2.35 with CPython3.11. Compatible glibc,
+build baseline is Ubuntu 22.04 x86_64/glibc 2.35 with CPython 3.11. Compatible glibc,
 ncurses/terminfo support, a UTF-8 terminal and ordinary access to procfs/sysfs
 remain host requirements. The build baseline is not universal compatibility;
-Ubuntu20.04/Debian11 and non-x86_64 packages are not supported by this build.
+Ubuntu 20.04/Debian 11 and non-x86_64 packages are not supported by this build.
 See [AppImage's baseline guidance](https://docs.appimage.org/reference/best-practices.html).
 
 AppImage mounting can require FUSE. The monitor installs nothing automatically.
@@ -41,12 +42,12 @@ the monitor neither selects nor changes its compositor/backend.
 
 The dashboard lists its keyboard controls. Quit with `q` or Ctrl+C, refresh with
 `r`, edit connection with `s`, change interval with `i`, view sources with `d`, and
-toggle30-second quiet mode with `p`. Tokens are entered without echo and remain
+toggle 30-second quiet mode with `p`. Tokens are entered without echo and remain
 in process memory only. Normal preferences are saved on explicit edits under
 `${XDG_CONFIG_HOME:-~/.config}/unsloth-monitor/settings.json`.
 
 The terminal does not expose a portable minimized-window signal. Use quiet mode
-when leaving it in the background; foreground/default polling is5 seconds.
+when leaving it in the background; foreground/default polling is 5 seconds.
 Closing the terminal ends the process. No service, tray process or startup
 registration is installed. A kernel-held lock prevents duplicate instances using
 the same configuration directory. The empty lock file may remain after exit;
@@ -67,7 +68,7 @@ files, drivers or other applications' configuration belong to this monitor.
 ## Rebuilding
 
 Use the isolated developer environment from README.md. PyInstaller creates an
-onedir payload; appimagetool1.9.1 wraps it. Both the packager and runtime are
+onedir payload; appimagetool 1.9.1 wraps it. Both the packager and runtime are
 checksum-verified. The runtime upstream URL uses a rolling tag with a fixed
 digest: changed upstream assets cause a build failure until deliberately reviewed.
 The builder creates a fresh AppDir each time and commits no binaries.

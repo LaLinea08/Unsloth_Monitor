@@ -1,97 +1,118 @@
 # Project progress
 
-Updated: 2026-09-26. License decision: **undecided**, as requested by the user.
+Updated: 2026-09-26. License: **undecided**, as explicitly requested by the user.
 No public release is authorized while the license remains undecided.
+
+## Current direction
+
+The user explicitly requested the application **inside the computer's normal
+terminal**, inheriting its appearance. This supersedes the original Qt-widget
+requirement. The earlier Qt implementation and UI tests were removed. Current
+runtime code has no Qt dependency and does not define a font, fixed color
+palette, or background theme. PROJECT_SPEC.md preserves the original brief;
+the latest user decision governs the interface.
 
 ## Implemented
 
-- Native PySide6/Qt widget dashboard, dark industrial layout, resizable scroll
-  fallback, source/state/time tooltips, truthful missing fields, and local
-  connection/refresh settings. Tokens are session-only.
-- Linux CPU identity/utilization, RAM, uptime, CPU hwmon sensors, discovered AMD
-  GPU identity/activity/VRAM/temperature/SoC power. Static discovery is cached,
-  reads are bounded, missing/denied/unsupported states are explicit, and the
-  first CPU sample is pending. Suspended GPUs skip optional sensor inputs.
-- Passive local Unsloth liveness adapter with strict source-verified signature,
-  two-second overall deadline, 32 KiB body limit, connection reuse, authentication
-  classification, and no raw response/credential logging. Model and inference
-  fields remain unavailable; no heavier endpoints are silently probed.
-- Independent hardware/network workers with single replaceable result slots,
-  bounded backoff, five-second default polling and 30-second minimized polling.
-  Restoring preserves snapshot age; old data becomes stale.
-- Manual launch, duplicate-instance lock, and asynchronous close/worker cleanup.
-  No startup registration, tray persistence, services, compute runtime, model
-  loads, inference traffic, hardware-setting writes, or fixture substitution.
-- Read-only `scripts/diagnose.py`, process-tree overhead observation script,
-  CI checks, PyInstaller/AppImage candidate configuration, icon, and documentation.
+- Terminal-native curses dashboard, pure bounded renderer, responsive terminal
+  resize, scrolling on smaller terminals, honest missing readings, and a source/
+  unit/time/state view. Unknown bars use question marks, not fabricated zero.
+- Keyboard controls: q quit, r refresh, s connection settings, i interval,
+  p quiet mode, d sources, arrows/Page Up/Page Down scroll. Token input is hidden,
+  bounded, and session-only; URL/interval preferences can be saved.
+- Linux CPU identity/utilization, RAM, uptime, CPU sensors, and discovered AMD GPU
+  identity/activity/VRAM/temperature/SoC power. Cached discovery, bounded reads,
+  baseline CPU pending state, explicit missing/denied/unsupported readings, and
+  skipped optional sensor inputs for suspended GPUs.
+- Source-verified local liveness adapter with strict signature, two-second
+  overall deadline, 32 KiB response limit, reuse, authentication classification,
+  and no raw credential/response logging. Model/inference fields remain absent.
+- Independent hardware/network workers, one replaceable result per source,
+  bounded backoff, five-second default intervals, explicit 30-second quiet mode,
+  stale-state handling, and rejection of obsolete configuration results.
+- Manual launch, Linux duplicate-process locking, terminal restoration, and
+  cleanup on q/Ctrl-C/SIGTERM/SIGHUP. No startup registration, services, compute
+  runtime, model loading, inference traffic, or hardware-setting writes.
+- Read-only diagnostic and Linux process-tree observer; source and package
+  pseudo-terminal CI configuration, AppImage build configuration, optional
+  terminal desktop launcher, and supporting documentation.
 
-## Verified evidence and exact environment
+## Actual evidence
 
-Actual development host: **Windows 11 build 26200, AMD64; CPython 3.14.6;
-PySide6/Qt 6.11.2**, using the repository's isolated `.venv`. Neither named Linux
-computer was accessible during this session. The Windows platform collector
-deliberately returns unsupported hardware metrics; this is not a Windows port.
+Development host: **Windows 11 build 26200, AMD64, CPython 3.14.6**, using the
+repository's isolated environment. Neither specified Linux computer was
+accessible. Windows hardware telemetry and interactive application launch are
+explicitly unsupported; portable tests do not establish a Windows port.
 
-- Linux collector fixtures: **29 passed**. These exercise real file-reading
-  paths against synthetic procfs/sysfs trees, including permissions, counter
-  resets, discovery, units, missing readings, and no optional input reads when
-  the GPU is suspended. They establish no real GPU compatibility.
-- Final complete local suite: **83 passed in 7.87 seconds**.
-- Latest lifecycle/UI/polling subset: **10 passed in 5.89 seconds**. This includes
-  actual Qt close handling while a network worker waits, independent hardware
-  progress, worker cleanup, minimized stale restore, formatting, and two real
-  processes proving duplicate rejection and lock release/reopen.
-- The populated default 820×900 window fits with no scrollbars using the Windows
-  offscreen plugin and `QT_QPA_FONTDIR=C:\Windows\Fonts`. The 460×460 layout test
-  verifies horizontal fit; smaller windows can scroll vertically.
-- Ruff passed across source, tests and scripts; git diff whitespace checks passed.
-  Actual offscreen application launch, screenshot and clean exit passed.
-  Linux CI results must be recorded when run.
-- The upstream Unsloth liveness implementation was inspected at commit
-  `b6ee1739d4714193dcba0f3585cb79f839c435ab`; [TELEMETRY.md](TELEMETRY.md) records
-  sources and rejected endpoints. Installed Fedora/CachyOS Unsloth versions,
-  actual endpoint/auth requirements, and end-to-end compatibility are unverified.
+- Current complete local terminal-era run: **121 passed, one Linux-only lock
+  test skipped on Windows**. Ruff passed for the complete tree.
+- Ubuntu 22.04 x86_64 CI: **113 passed** on **Python 3.11.16** and **3.14.7**.
+  Actual source curses launch in a pseudo-terminal passed on both versions.
+- Current terminal renderer/keyboard subset: **23 passed in 0.07 seconds**.
+  Covers 80×24 layout, narrow/wide Unicode bounds, source details, control-character
+  filtering, stale/missing values, quiet/refresh/interval keys, hidden token
+  input, cancellation, safe save errors, unchanged-frame redraw suppression,
+  cleanup, and moving back after scrolling past the end.
+- Linux hardware fixture subset: **29 passed**. Exercises normal file-reading
+  paths against synthetic procfs/sysfs, including denied/missing files, counters,
+  discovery, units, and suspended-device input avoidance.
+- At commit `edbd92d`, the AppImage built, the extracted bundled payload launched
+  through actual curses in a Linux pseudo-terminal, and the payload was checked
+  to contain no Qt. See
+  [package workflow 36263567059](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36263567059).
+  Normal AppImage mount/launch, visible terminal emulators, and target-machine
+  acceptance remain unverified.
+- Earlier PySide6/Qt 6.11.2 offscreen Windows tests belonged to the superseded
+  GUI and are not current terminal acceptance evidence.
+- Official Unsloth source at
+  `b6ee1739d4714193dcba0f3585cb79f839c435ab` establishes the inspected liveness
+  contract. Installed Fedora/CachyOS versions and actual endpoint/auth remain
+  unverified. [TELEMETRY.md](TELEMETRY.md) records exact source evidence.
 
-## Measurements and packaging
+## Performance and packaging
 
-Preliminary Windows offscreen source observation: mean process-tree RSS 64.46 MiB,
-peak 64.48 MiB over 59.23 measured seconds after 10 seconds warm-up; CPU counter
-delta rounded to 0.000% of one logical CPU (below resolution, not zero overhead).
-Two observed processes, clean exit. See [PERFORMANCE.md](PERFORMANCE.md).
-The 100 MiB RSS and <0.5% of one logical CPU figures are targets only. No long-
-session, GPU idle-power, visible Linux, or packaged CachyOS result exists. No
-inference benchmark was authorized or run.
+Initial terminal package observation on Ubuntu 22.04 CI averaged 21.89 MiB tree
+RSS and 0.219% of one logical CPU over 59.25 s after 10 s warm-up; one process,
+clean exit. Quiet mode had similar measured CPU, so idle UI wakeups were reduced
+for a follow-up package measurement. No actual target-GPU idle power, hours-long
+memory or packaged CachyOS result exists. The ≤100 MiB RSS and <0.5% CPU targets
+are not target-machine acceptance claims. No inference benchmark was run.
+[PERFORMANCE.md](PERFORMANCE.md) distinguishes synthetic PTY observation from
+actual emulator overhead and superseded Qt results.
 
-Ubuntu 22.04 x86_64 / Python 3.11 AppImage candidate build and extracted-payload
-smoke workflows are prepared. They have not yet established a successful Linux
-package, actual Wayland/X11 launch, or portable compatibility. Workflow artifacts
-are for review; release publication remains blocked on license confirmation and
-real-machine acceptance. See [COMPATIBILITY.md](COMPATIBILITY.md).
+The Ubuntu 22.04 x86_64 / Python 3.11 AppImage candidate built successfully and
+its extracted bundled runtime passed a Linux pseudo-terminal smoke test without
+Qt. The initial terminal candidate was 17,132,024 bytes with SHA-256
+`cd864e8ffc78fc311459cc2468a7cc6704449bebbec7de5a82464fb29b500403`.
+This is a CI candidate, not actual target-desktop acceptance. The final quiet-mode
+refinement build will be recorded separately. Release remains
+blocked on license confirmation and real-machine acceptance.
 
 ## Known limits
 
-- Only one discovered AMD GPU is selected; other GPU vendors and Windows
-  telemetry are unsupported. Restart after hardware or driver/sensor changes.
+- One selected AMD GPU; other GPU vendors and Windows telemetry unsupported.
+  Restart after hardware/driver/sensor changes because discovery is cached.
 - Liveness does not establish loaded model, quantization, context, backend,
-  generation state, output token counts/rate, or request duration.
-- Runtime-state guards do not prove zero GPU wake/power effect. A broken Linux
-  driver can block a sysfs read indefinitely; the GUI stays responsive, but
-  shutdown may wait for that worker. This has not been tested on target hardware.
-- No actual Fedora, CachyOS, Wayland, X11, or packaged runtime validation has
-  occurred. Other distributions and older glibc systems are not certified.
+  generation, token counts/rate, or request duration.
+- Terminal minimization cannot be detected reliably; quiet polling is explicit.
+- Driver state guards do not prove zero GPU wake/power effect. A faulty Linux
+  sysfs read can block indefinitely and delay worker shutdown; untested on
+  target hardware.
+- A Linux PTY test cannot establish actual terminal font/theme/window behavior,
+  target GPU compatibility, or host desktop integration. Older glibc systems,
+  other architectures, and untested distributions are not certified.
 
 ## Next concrete action
 
-On the **Fedora development computer**, from a complete checkout, run:
+On the **Fedora development computer**, from a complete checkout:
 
 ```bash
 python3 scripts/diagnose.py
 ```
 
-This requires Python 3.11+ and no installed project dependencies. It reads local
-hardware and makes one bounded liveness GET, writes no files, installs nothing,
-changes no settings, and sends no inference content. An offline Unsloth result
-on Fedora is expected if Unsloth is not running there. Review the selected output
-before sharing, and record the exact Fedora version/kernel/session. Keep any
-later CachyOS output separate. Continue with the same native dashboard after
-the readings are verified; no separate editions are needed.
+Python 3.11+ and the standard library suffice. The script reads selected hardware,
+makes one bounded liveness GET, writes no files, installs nothing, changes no
+settings, and sends no inference content. An offline Unsloth result is acceptable
+on Fedora. Review the output before sharing and record the Fedora/kernel/session
+versions. Keep later CachyOS results separate, then launch this same dashboard
+in the computer's normal terminal.

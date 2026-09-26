@@ -15,7 +15,7 @@ validation without actual results from those separate computers.
 - Never equate GPU activity with generation or a model catalog with loaded models.
 - Tests may use fixtures; normal operation must never substitute fixture data.
 - Quit/Ctrl+C closes the dashboard and workers. No background service. Terminal
-  minimization is not observable portably; explicit quiet mode polls every30s.
+  minimization is not observable portably; explicit quiet mode polls every 30s.
   Keep polling and all retained data bounded.
 - Never commit credentials, private logs, model weights or generated packages.
 - License is undecided: do not publish a public release until the user confirms it.

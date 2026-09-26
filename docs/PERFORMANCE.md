@@ -1,86 +1,102 @@
 # Performance validation
 
-The performance numbers below are engineering targets, not achieved claims.
-No inference benchmark has been authorized or run. No Fedora, CachyOS, packaged
-Linux, Wayland, or X11 overhead result has yet been recorded.
+The following are engineering targets, not achieved claims. The current app is
+terminal-native. No terminal application overhead, actual Fedora/CachyOS,
+packaged Linux, long-session, or inference-impact result is established yet.
+No inference benchmark was authorized or run.
 
-| Target at default visible refresh | Interpretation |
+| Target | Interpretation |
 | --- | --- |
-| Steady-state resident memory ≤100 MiB | Include monitor helper processes; investigate sustained usage above 150 MiB |
-| Average CPU <0.5% of one logical CPU | Do not divide by the machine's logical CPU count and call that the same quantity |
-| Lower minimized overhead | Poll at 30 seconds and suppress dashboard updates |
-| Bounded long-session memory | Single result slot per source, no persistent sample history; verify over hours |
-| No repeatable inference regression beyond noise | Requires separately authorized, controlled tests on the packaged CachyOS application |
+| Steady-state resident memory ≤100 MiB | Include monitor helpers; investigate sustained usage above 150 MiB |
+| Average CPU <0.5% of one logical CPU | Do not substitute CPU divided by the whole-machine logical CPU count |
+| Lower quiet-mode overhead | Explicit 30-second polling; terminal minimization cannot be reliably detected |
+| Bounded long-session memory | Single result slot per source, no sample history; verify over hours |
+| No repeatable inference regression beyond noise | Requires separately authorized tests of the packaged CachyOS application |
 
 ## Implemented controls
 
-The dashboard uses native widgets, no animations or graphs, and changes labels
-and progress values only when necessary. Hardware and HTTP run in two persistent
-workers with no executor queues, helper command loop, or overlapping polls.
-Static hardware discovery is cached. The default refresh is five seconds plus
-collection duration; minimized polling is 30 seconds. Failed HTTP checks back
-off to 30 seconds, and each request has a two-second overall budget. The process
-does not persist samples or write diagnostic logs on each refresh.
+The runtime has no Qt, browser, ML, or inference dependencies. Two persistent
+workers collect hardware and HTTP independently with no overlapping polls or
+unbounded executor queues. Discovery is cached. Normal polling defaults to five
+seconds plus collection time; `p` or `--quiet` selects 30 seconds. Failed HTTP
+checks back off to 30 seconds, with a two-second overall budget per request.
 
-The runtime package excludes ML frameworks. GPU compute is never initialized by
-the monitor. Window rendering/compositing can still consume graphics resources.
-GPU runtime-state guards skip optional sensors on suspended devices, but they do
-not establish that polling active devices has zero power or latency impact.
+The terminal input loop wakes at most twice per second and does not redraw
+unchanged frames. There are no animations, charts, sample history, or background
+sample-log writes. GPU compute is never initialized. Terminal emulator
+rendering/compositing can still use graphics resources and must be considered.
+GPU runtime-state guards do not establish zero wake or idle-power impact.
 
-## Measuring monitor overhead
+## Measuring the current implementation
 
-`scripts/measure_overhead.py` observes the monitor process tree using the
-development-only `psutil` dependency. It launches a separate monitor instance
-with an isolated temporary configuration, waits through a warm-up, then samples
-resident memory and cumulative CPU time at one-second intervals. It sends no
-inference prompts and performs no inference benchmark. The launched monitor
-still makes its normal passive local liveness checks.
-
-From the isolated development environment:
+Use the development-only psutil observer from an isolated environment. It sends
+no inference prompts. Normal monitor liveness checks still occur.
 
 ```bash
 python scripts/measure_overhead.py --warmup 10 --duration 300
-python scripts/measure_overhead.py --warmup 10 --duration 300 --minimized
+python scripts/measure_overhead.py --warmup 10 --duration 300 --quiet
 ```
 
-For a candidate package, supply `--executable /absolute/path/to/the.AppImage`.
-Use `--offscreen` only for a headless engineering check and identify it explicitly
-in the results. It cannot substitute for a normal visible desktop session.
+These commands start a monitor in a synthetic Linux pseudo-terminal with an
+isolated temporary configuration. Add `--executable /absolute/path/to/the.AppImage`
+for a candidate package. A synthetic PTY excludes terminal-emulator rendering
+and is only an engineering baseline.
+
+For an application already open in the user's normal terminal, observe its PID:
+
+```bash
+python scripts/measure_overhead.py --pid MONITOR_PID --warmup 10 --duration 300
+```
+
+This leaves the existing monitor running and uses its current settings. Its
+parent terminal emulator is outside the monitor process tree: record the
+terminal's incremental CPU/memory separately when evaluating total overhead.
+Do not count all pre-existing terminal memory as newly caused by the monitor.
 
 Output separates sampled startup memory from steady-state samples and reports
-mean/peak/first/last RSS, CPU relative to one logical CPU, peak observed process
-count, and clean exit. The observer itself is excluded; short-lived helpers may
-be missed between samples. Startup peaks are sampled estimates. Record exact OS,
-kernel, CPU/GPU, Python/Qt/package versions, display session, visibility, refresh,
-service state, duration, and other workload. Preserve raw outputs privately and
-commit only a reviewed summary without credentials or private machine logs.
+mean/peak/first/last process-tree RSS, CPU relative to one logical CPU, and peak
+observed process count. Sampling occurs once per second; short-lived helpers
+and subsecond peaks may be missed. The observer is excluded. Synthetic-PTY runs
+check clean monitor exit; PID observation intentionally leaves the process open.
+
+Record OS/kernel, CPU/GPU, package/Python versions, terminal emulator/version,
+TERM, display session, terminal dimensions, polling mode, Unsloth service state,
+duration, and other workloads. Keep raw logs private and commit only reviewed
+summaries without credentials or inference content.
 
 ## Results register
 
 | Run | Result |
 | --- | --- |
-| Windows 11 build26200 AMD64, Python3.14.6 / Qt6.11.2, offscreen source, default polling, unsupported hardware collector, offline endpoint | 10s warm-up;59.23s measured; mean tree RSS64.46MiB, peak64.48MiB, first64.46MiB,last64.41MiB; startup sampled peak64.45MiB;2 processes;clean exit |
-| Fedora visible/minimized source prototype | Not run |
-| CachyOS visible/minimized packaged application | Not run |
+| Initial terminal package `edbd92d`, default mode, synthetic PTY | 21.89 MiB mean tree RSS; 21.91 MiB peak; 0.219% of one logical CPU; 59.25 s measured after 10 s warm-up; one process; clean exit |
+| Initial terminal package `edbd92d`, quiet mode, synthetic PTY | 21.90 MiB mean tree RSS; 21.91 MiB peak; 0.219% of one logical CPU; 59.25 s measured after 10 s warm-up; one process; clean exit |
+| Current terminal runtime, actual Fedora terminal | Not run |
+| Packaged application, CachyOS normal/quiet modes | Not run |
 | Hours-long memory observation | Not run |
 | GPU idle-power / graphics-memory comparison | Not run |
 | Inference throughput / time-to-first-token comparison | Not authorized or run |
 
+Earlier Windows offscreen Qt observations, if retained elsewhere, describe the
+superseded GUI. They cannot demonstrate current terminal performance.
+
+The initial terminal observations ran on Ubuntu 22.04, kernel 6.8.0-1064-azure,
+x86_64/glibc 2.35; bundled Python 3.11.16; TERM=xterm-256color, 32×100 synthetic
+PTY; default offline loopback endpoint; no target AMD GPU. The observer sampled
+once per second. Both runs were stable over this short interval, but did not
+demonstrate lower CPU in quiet mode. Idle UI wakeups were subsequently reduced
+from 500 ms to 2000 ms in quiet mode; final observations are recorded after the
+updated package is built. Keyboard input still wakes immediately. These are
+preliminary process figures, excluding terminal-emulator rendering; they are
+not a packaged CachyOS hosting-impact result or a long-session guarantee.
+
 ## Later inference comparison
 
-The Windows run's CPU counter delta reported 0.000% of one logical CPU at the
-observer's precision. Interpret this as below measurement resolution, never as
-zero overhead. It used the offscreen renderer without a populated font database,
-not the Linux collector or a native display/compositor. This very short run does
-not establish the visible Linux targets or long-session memory behavior. The two
-processes include the Windows virtual-environment launcher and interpreter.
-
-Obtain explicit authorization before running any prompts or benchmark. On
-CachyOS, compare monitor closed, packaged monitor visible at defaults, and
-optionally minimized. Keep the model, backend, context, prompt, generation
-settings, concurrency, and other workload constant. Warm up, repeat runs, and
-report normal variation alongside throughput and time to first token when
-available. Include the monitor process tree's CPU/RSS and relevant GPU memory
-and idle-power differences. Investigate a repeatable throughput loss above
-approximately 1% only when it is distinguishable from normal variation. An
-inconclusive comparison is not evidence of no impact.
+Obtain explicit authorization before sending benchmark prompts. On CachyOS,
+compare monitor closed, packaged monitor at defaults in the normal terminal,
+and quiet mode where useful. Keep the model, backend, context, prompt,
+generation settings, concurrency, and other workload constant. Warm up, repeat
+runs, and report variation together with throughput and time to first token
+where available. Include monitor/terminal CPU and memory plus GPU memory and
+idle-power differences. Investigate a repeatable throughput reduction above
+approximately 1% only when distinguishable from ordinary variation. Inconclusive
+results are not evidence of no impact.
