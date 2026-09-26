@@ -1,0 +1,65 @@
+name: Linux package candidate
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/linux-prototype]
+    paths:
+      - 'src/**'
+      - 'packaging/**'
+      - 'scripts/**'
+      - 'requirements-dev.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/linux-package.yml'
+permissions:
+  contents: read
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip install --no-build-isolation --no-deps -e .
+      - run: python -m pytest -q
+      - name: Verify official appimagetool and runtime
+        run: |
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/appimagetool.AppImage" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $RUNNER_TEMP/appimagetool.AppImage" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/appimagetool.AppImage"
+          mkdir -p "$RUNNER_TEMP/appimagetool-extracted"
+          cd "$RUNNER_TEMP/appimagetool-extracted"
+          "$RUNNER_TEMP/appimagetool.AppImage" --appimage-extract
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/runtime-x86_64" https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+          echo "1cc49bcf1e2ccd593c379adb17c9f85a36d619088296504de95b1d06215aebbf  $RUNNER_TEMP/runtime-x86_64" | sha256sum -c -
+      - name: Build candidate
+        env:
+          APPIMAGETOOL: ${{ runner.temp }}/appimagetool-extracted/squashfs-root/AppRun
+          APPIMAGE_RUNTIME: ${{ runner.temp }}/runtime-x86_64
+        run: bash scripts/build_appimage.sh
+      - name: Launch packaged terminal payload without development Python
+        run: |
+          mkdir -p "$RUNNER_TEMP/package-extracted"
+          cd "$RUNNER_TEMP/package-extracted"
+          "$GITHUB_WORKSPACE/dist/Unsloth-Monitor-x86_64.AppImage" --appimage-extract
+          if find squashfs-root -iname '*Qt6*' -o -iname '*PySide6*' | grep -q .; then
+            echo 'Unexpected Qt payload in terminal build' >&2
+            exit 1
+          fi
+          python "$GITHUB_WORKSPACE/scripts/pty_smoke.py" --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" --output "$GITHUB_WORKSPACE/dist/terminal-smoke.txt"
+      - name: Observe packaged process resources (not hosting benchmarks)
+        run: |
+          python scripts/measure_overhead.py --duration 60 --warmup 10 --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" > dist/overhead-default.json
+          python scripts/measure_overhead.py --duration 60 --warmup 10 --quiet --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" > dist/overhead-quiet.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Unsloth-Monitor-linux-x86_64-candidate
+          path: |
+            dist/*.AppImage
+            dist/SHA256SUMS
+            dist/terminal-smoke.txt
+            dist/overhead-*.json
+          retention-days: 14
+# No public release publication. License and actual-machine acceptance pending.
