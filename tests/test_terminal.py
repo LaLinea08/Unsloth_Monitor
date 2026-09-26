@@ -8,7 +8,7 @@ import pytest
 
 from unsloth_monitor.metrics import Availability, ConnectionSnapshot, ConnectionStatus, HardwareSnapshot, Metric
 from unsloth_monitor.settings import Settings
-from unsloth_monitor.terminal import TerminalDashboard, format_metric, render_lines
+from unsloth_monitor.terminal import TerminalDashboard, format_metric, render_lines, terminal_palette
 
 
 def fixture_hardware():
@@ -38,7 +38,7 @@ def test_renderer_has_no_curses_or_qt_import_dependency(monkeypatch):
 def test_full_dashboard_in_normal_80_by_24_terminal_contains_actual_units():
     output = "\n".join(render_lines(fixture_hardware(), ConnectionSnapshot(
         status=ConnectionStatus.OFFLINE), 80, 24))
-    for expected in ("MODEL", "INFERENCE", "OFFLINE", "GPU: Fixture GPU", "CPU: Fixture CPU",
+    for expected in ("UNSLOTH", "OFFLINE", "GPU  Fixture GPU", "SYSTEM  Fixture CPU",
                      "5.0 GiB / 16.0 GiB", "3.0 GiB / 8.0 GiB", "137.5 W", "06:43:20",
                      "50%", "51 °C", "q quit", "d sources"):
         assert expected in output
@@ -46,10 +46,10 @@ def test_full_dashboard_in_normal_80_by_24_terminal_contains_actual_units():
 
 def test_unavailable_values_never_look_like_zero_activity():
     output = "\n".join(render_lines(None, None, 80, 24))
-    assert "[????????????????]" in output
+    assert "--" in output and "█" not in output
     assert "0%" not in output
     assert "0.0 GiB" not in output
-    assert "Loaded: --" in output
+    assert "Model and inference details unavailable." in output
     assert format_metric(Metric(value=42, availability=Availability.STALE)) == "Stale"
     assert format_metric(Metric(availability=Availability.PERMISSION_DENIED)) == "Permission denied"
 
@@ -61,8 +61,10 @@ def test_online_liveness_does_not_fill_inference_metrics():
     })
     output = "\n".join(render_lines(fixture_hardware(), connection, 80, 24))
     assert "ONLINE" in output
-    assert "Loaded: Not exposed" in output
-    assert "State: Not exposed" in output
+    assert "Model and inference details are not exposed" in output
+    assert "Not exposed" not in output
+    detail = "\n".join(render_lines(None, connection, 80, 24, details=True, offset=2000))
+    assert "generation_state:" in detail and "[unsupported]" in detail
     assert "GENERATING" not in output
 
 
@@ -82,8 +84,8 @@ def test_narrow_view_can_scroll_to_hardware_and_retains_keys():
     hardware = fixture_hardware()
     initial = "\n".join(render_lines(hardware, None, 42, 12))
     last = "\n".join(render_lines(hardware, None, 42, 12, offset=2000))
-    assert "MODEL" in initial
-    assert "Uptime: 06:43:20" in last
+    assert "GPU  Fixture GPU" in initial
+    assert "UNSLOTH" in last
     assert "q quit" in initial and "q quit" in last
 
 
@@ -109,7 +111,24 @@ class FakeCurses:
 
     KEY_ENTER, KEY_BACKSPACE, KEY_DOWN, KEY_NPAGE, KEY_UP, KEY_PPAGE, KEY_HOME = range(1000, 1007)
 
+    A_BOLD, A_DIM = 1, 2
+    COLOR_CYAN, COLOR_GREEN, COLOR_YELLOW, COLOR_RED, COLOR_MAGENTA = 6, 2, 3, 1, 5
+    COLOR_PAIRS, COLORS = 64, 8
+
+    def has_colors(self):
+        return True
+
+    def start_color(self):
+        pass
+
+    def init_pair(self, number, foreground, background):
+        self.pairs.append((number, foreground, background))
+
+    def color_pair(self, number):
+        return number * 256
+
     def __init__(self):
+        self.pairs = []
         self.defaults_used = False
         self.echo_disabled = False
 
@@ -128,6 +147,7 @@ class FakeScreen:
         self.keys = iter(keys)
         self.lines = {}
         self.frames = []
+        self.attributes = []
         self.size = (24, 80)
 
     def getmaxyx(self):
@@ -136,9 +156,14 @@ class FakeScreen:
     def erase(self):
         self.lines = {}
 
-    def addstr(self, row, column, value):
+    def addstr(self, row, column, value, attr=0):
         assert row < self.size[0]
-        self.lines[row] = value
+        self.attributes.append((row, column, value, attr))
+        if column == 0:
+            self.lines[row] = value
+        else:
+            previous = self.lines.get(row, "")
+            self.lines[row] = previous[:column].ljust(column) + value
 
     def refresh(self):
         self.frames.append("\n".join(self.lines.values()))
@@ -269,3 +294,75 @@ def test_scrolling_past_end_does_not_require_many_up_keys_to_move_back():
     view.run()
     assert view.offset < 100
     assert screen.frames[0] != screen.frames[1]
+
+
+def test_large_terminal_keeps_related_values_in_a_readable_column():
+    lines = render_lines(fixture_hardware(), None, 240, 40)
+    assert all(len(line) <= 102 for line in lines)
+    assert not any("-" * 30 in line for line in lines)
+    assert "GPU  Fixture GPU" in lines[3]
+    assert "hardware: this computer" in "\n".join(lines)
+    assert "fixture-host" not in "\n".join(lines)
+
+
+def test_in_flight_activity_has_explicit_scope_and_does_not_claim_residency_or_decode():
+    connection = ConnectionSnapshot(status=ConnectionStatus.ONLINE, metrics={
+        "active_requests": Metric.available(1, "operations", "/api/inference/active-generations"),
+        "active_model": Metric.available("fixture-active-model"),
+        "loaded_model": Metric(availability=Availability.UNSUPPORTED),
+        "generation_state": Metric(availability=Availability.UNSUPPORTED),
+    })
+    lines = render_lines(fixture_hardware(), connection, 80, 24)
+    output = "\n".join(lines)
+    assert "In-flight operations: 1" in output
+    assert "Active model labels: fixture-active-model" in output
+    assert "loading, queue and tool phases" in output
+    assert "Loaded model:" not in output and "GENERATING" not in output
+    assert "Other model/inference details unavailable" in output
+
+
+def test_color_uses_host_palette_slots_and_preserves_default_background(monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    curses = FakeCurses()
+    palette = terminal_palette(curses)
+    assert curses.defaults_used
+    assert all(background == -1 for _, _, background in curses.pairs)
+    assert palette["good"] != palette["warning"]
+    view, screen, _, _ = dashboard(["q"])
+    view.run()
+    assert any("OFFLINE" == text and attribute for _, _, text, attribute in screen.attributes)
+    assert any("VRAM" in text and attribute for _, _, text, attribute in screen.attributes)
+
+
+def test_monochrome_and_no_color_keep_all_readings(monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    curses = FakeCurses()
+    palette = terminal_palette(curses)
+    assert curses.pairs == []
+    assert palette["heading"] == curses.A_BOLD
+    monkeypatch.delenv("NO_COLOR")
+    curses.has_colors = lambda: False
+    assert terminal_palette(curses)["heading"] == curses.A_BOLD
+    view, screen, _, _ = dashboard(["q"])
+    view.curses = curses
+    view.run()
+    assert "5.0 GiB / 16.0 GiB" in screen.frames[0]
+
+
+def test_color_initialization_failure_does_not_prevent_monitoring():
+    view, screen, controller, curses = dashboard(["q"])
+    def fail():
+        raise curses.error("No terminal color support")
+    curses.start_color = fail
+    view.run()
+    assert "Fixture GPU" in screen.frames[0]
+    assert controller.closed == 1
+
+
+def test_optional_activity_authentication_is_visible_without_hiding_online_hardware():
+    connection = ConnectionSnapshot(status=ConnectionStatus.ONLINE, metrics={
+        "active_requests": Metric(availability=Availability.PERMISSION_DENIED),
+    })
+    output = "\n".join(render_lines(fixture_hardware(), connection, 80, 24))
+    assert "ONLINE" in output and "Fixture GPU" in output
+    assert "Studio token or API key" in output and "Press s" in output

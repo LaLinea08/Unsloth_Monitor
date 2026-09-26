@@ -59,8 +59,9 @@ This is a **development prerelease**, built on Ubuntu 22.04 x86_64. Automated
 tests, the extracted bundled application's terminal smoke test, and short
 default/quiet resource observations passed. Normal mounted AppImage launch,
 Fedora/CachyOS hardware and terminal behavior, and installed Unsloth integration
-remain unverified. Model/inference metrics remain unavailable. No inference
-benchmark was performed.
+remain unverified. Loaded-model details and token metrics remain unavailable;
+in-flight operation reporting depends on the installed Unsloth version. No
+inference benchmark was performed.
 
 Packaged process observations (synthetic PTY; terminal-emulator rendering excluded):
 

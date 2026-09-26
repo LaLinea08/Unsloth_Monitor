@@ -47,6 +47,8 @@ jobs:
             exit 1
           fi
           python "$GITHUB_WORKSPACE/scripts/pty_smoke.py" --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" --output "$GITHUB_WORKSPACE/dist/terminal-smoke.txt"
+      - name: Launch AppImage from a desktop-style nonterminal process
+        run: python scripts/launcher_smoke.py --executable "$GITHUB_WORKSPACE/dist/Unsloth-Monitor-x86_64.AppImage" --appimage --output "$GITHUB_WORKSPACE/dist/launcher-smoke.txt"
       - name: Observe packaged process resources (not hosting benchmarks)
         run: |
           python scripts/measure_overhead.py --duration 60 --warmup 10 --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" > dist/overhead-default.json
@@ -59,6 +61,7 @@ jobs:
             dist/*.AppImage
             dist/SHA256SUMS
             dist/terminal-smoke.txt
+            dist/launcher-smoke.txt
             dist/overhead-*.json
           retention-days: 14
   release:
