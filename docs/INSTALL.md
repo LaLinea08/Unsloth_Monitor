@@ -1,67 +1,78 @@
 # Installation and packaging
 
-No stable release is available. Source development steps are in README.md.
-Keep the source environment isolated. Do not use sudo pip or install drivers,
-sensor detection utilities or services for this monitor.
+The primary application runs inside your existing terminal and uses its default
+font/colors/background/transparency. It does not launch or configure a custom
+terminal emulator. No Qt, embedded browser or inference runtime is bundled.
 
 ## Candidate AppImage
 
-The packaging workflow builds on Ubuntu 22.04 x86_64 (glibc 2.35), with CPython
-3.11 and PySide6 Essentials 6.11.2. This is a candidate baseline, not a promise
-that every distribution with that glibc runs the package. Qt documents a
-[glibc 2.34 floor for Qt 6.10+](https://doc.qt.io/qt-6/linux.html); the full bundle's
-actual floor can be higher. AppImage recommends
-[building on an old enough baseline and testing target systems](https://docs.appimage.org/reference/best-practices.html).
-Ubuntu 20.04 and Debian 11 are outside this selected baseline. x86_64 only.
+No stable release is approved. The Linux workflow provides a temporary x86_64
+candidate artifact containing the AppImage, SHA256SUMS, a terminal launch capture
+and preliminary process observations. See PROGRESS.md for actual completed runs.
 
-PyInstaller onedir bundles the Python runtime and Qt widgets/plugins; it avoids
-single-executable runtime unpacking. AppImage wraps that directory. Qt QML/Quick,
-ML frameworks and inference runtimes are excluded. appimagetool 1.9.1 and its
-runtime are verified against pinned SHA-256 values. Builds stay workflow artifacts,
-not source commits. The app never launches as an installation side effect.
-
-After downloading a validated candidate artifact and checking SHA256SUMS:
+From your normal terminal, after verifying the downloaded checksum:
 
 ```sh
 chmod +x Unsloth-Monitor-x86_64.AppImage
 ./Unsloth-Monitor-x86_64.AppImage
 ```
 
-This needs no user-installed Python. A working graphical session, host graphics
-drivers, compatible glibc/libstdc++, system fonts and Qt platform libraries remain
-host requirements. X11 commonly needs xcb/xkbcommon and xcb-cursor libraries;
-Wayland needs a functioning Wayland session and its client libraries. The exact
-host dependency list must be checked on target systems. The AppImage runtime
-may require FUSE support; do not install it automatically. If unavailable:
+No installed Python/pip or development environment is needed. The candidate
+build baseline is Ubuntu22.04 x86_64/glibc2.35 with CPython3.11. Compatible glibc,
+ncurses/terminfo support, a UTF-8 terminal and ordinary access to procfs/sysfs
+remain host requirements. The build baseline is not universal compatibility;
+Ubuntu20.04/Debian11 and non-x86_64 packages are not supported by this build.
+See [AppImage's baseline guidance](https://docs.appimage.org/reference/best-practices.html).
+
+AppImage mounting can require FUSE. The monitor installs nothing automatically.
+If mounting is unavailable, extract and run from the same terminal:
 
 ```sh
 ./Unsloth-Monitor-x86_64.AppImage --appimage-extract
 ./squashfs-root/AppRun
 ```
 
-Launch the extracted package from a stable directory. `QT_QPA_PLATFORM=xcb`
-selects X11/XWayland; `QT_QPA_PLATFORM=wayland` selects native Wayland where
-the packaged plugin and host session support it. Neither path is advertised
-as validated until a recorded graphical launch on the target system.
+Running without an attached terminal prints launch instructions and exits. To
+launch directly from the desktop menu, optionally install the supplied desktop
+entry as described below. Your terminal emulator provides Wayland/X11 support;
+the monitor neither selects nor changes its compositor/backend.
 
-The workflow checks extracted payload launch with the offscreen Qt platform,
-outside the checkout and without development PYTHONPATH/VIRTUAL_ENV.
-That validates basic runtime imports and widget launch, not a native display,
-FUSE mounting, fonts on every host, sensors, or actual Unsloth.
+## Controls and preferences
 
-## Optional menu launcher
+The dashboard lists its keyboard controls. Quit with `q` or Ctrl+C, refresh with
+`r`, edit connection with `s`, change interval with `i`, view sources with `d`, and
+toggle30-second quiet mode with `p`. Tokens are entered without echo and remain
+in process memory only. Normal preferences are saved on explicit edits under
+`${XDG_CONFIG_HOME:-~/.config}/unsloth-monitor/settings.json`.
 
-Copy `packaging/unsloth-monitor.desktop` to your own
-`~/.local/share/applications/` only if desired. Change Exec to the quoted absolute
-AppImage path and Icon to an accessible copy of the supplied SVG. No installer
-does this automatically, and no file belongs in `~/.config/autostart`.
+The terminal does not expose a portable minimized-window signal. Use quiet mode
+when leaving it in the background; foreground/default polling is5 seconds.
+Closing the terminal ends the process. No service, tray process or startup
+registration is installed. A kernel-held lock prevents duplicate instances using
+the same configuration directory. The empty lock file may remain after exit;
+only an active kernel lock blocks another instance.
 
-## Uninstall
+## Optional menu launcher and removal
 
-Close the monitor; delete its AppImage or extracted directory. Remove any menu
-launcher you created yourself. If desired, remove only the monitor's preference
-directory (normally `~/.config/UnslothMonitor/Unsloth Monitor` on Linux). No
-services, startup entries, drivers or AI configuration are installed.
+Copy `packaging/unsloth-monitor.desktop` to `~/.local/share/applications/` only if
+desired. Set Exec to the quoted absolute AppImage path and Icon to an accessible
+copy of the supplied SVG. `Terminal=true` asks your desktop to use its configured
+terminal. Behavior must be checked on the target desktop; no launcher is created
+automatically and no file belongs in `~/.config/autostart`.
 
-For source builds, remove the checkout's `.venv` when no longer needed. The
-monitor does not own or remove Unsloth, models or other applications' files.
+To uninstall, quit and delete the AppImage or extracted directory, your optional
+menu launcher, and optionally the monitor's config directory. No models, Unsloth
+files, drivers or other applications' configuration belong to this monitor.
+
+## Rebuilding
+
+Use the isolated developer environment from README.md. PyInstaller creates an
+onedir payload; appimagetool1.9.1 wraps it. Both the packager and runtime are
+checksum-verified. The runtime upstream URL uses a rolling tag with a fixed
+digest: changed upstream assets cause a build failure until deliberately reviewed.
+The builder creates a fresh AppDir each time and commits no binaries.
+
+CI tests source and extracted packaged launches in a pseudoterminal, outside the
+checkout and without development PYTHONPATH/VIRTUAL_ENV. This exercises curses
+and clean shutdown; it does not certify Konsole, any physical display, mounted
+FUSE, GPU sensors, or the user's installed Unsloth.

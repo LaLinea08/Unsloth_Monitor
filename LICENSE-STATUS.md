@@ -6,7 +6,7 @@ Do not publish public releases until the owner confirms a license.
 
 Development source may be reviewed in the existing repository. Before distributing
 binaries, review all bundled third-party notices and obligations, including
-Python, PySide6/Qt, shiboken, PyInstaller and the AppImage runtime. The project
-license does not replace those licenses. Preserve notices and the ability to
-replace dynamically linked Qt libraries in the extracted payload. Packaging
-does not constitute completed licensing review.
+Python, ncurses, PyInstaller and the AppImage runtime. The project license does
+not replace those licenses. The primary terminal package excludes PySide6/Qt;
+any older graphical prototype artifacts retain their Qt licensing obligations.
+Packaging does not constitute completed licensing review.

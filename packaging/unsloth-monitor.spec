@@ -1,4 +1,4 @@
-# Build on Linux x86_64; PyInstaller preserves dynamically linked Qt libraries.
+# Build on Linux x86_64; stdlib curses uses the user's terminal appearance.
 from pathlib import Path
 
 root = Path(SPECPATH).parent
@@ -11,7 +11,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['PySide6.QtQml', 'PySide6.QtQuick', 'PySide6.QtOpenGL', 'PySide6.QtTest'],
+    excludes=['PySide6', 'shiboken6', 'tkinter'],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

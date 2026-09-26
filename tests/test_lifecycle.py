@@ -1,33 +1,21 @@
-"""Exercise actual Qt lifecycle and process locking with controlled collectors."""
+"""Portable runtime tests: real workers and controlled, test-only collectors."""
 
-import os
-from pathlib import Path
-import socket
-import subprocess
-import sys
+from dataclasses import replace
 import threading
 import time
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 import pytest
-from PySide6.QtWidgets import QApplication, QDialog
 
-from unsloth_monitor.app import Controller
-from unsloth_monitor.metrics import ConnectionSnapshot, ConnectionStatus, HardwareSnapshot, Metric
-from unsloth_monitor.settings import Settings, save_settings
-from unsloth_monitor.ui.dashboard import Dashboard, SettingsDialog
-
-
-@pytest.fixture
-def qt_app():
-    return QApplication.instance() or QApplication([])
+from unsloth_monitor.metrics import (
+    Availability, ConnectionSnapshot, ConnectionStatus, HardwareSnapshot, Metric,
+)
+from unsloth_monitor.runtime import Monitor
+from unsloth_monitor.settings import Settings
 
 
-def pump(app, predicate, timeout=2):
+def wait_until(predicate, timeout=1):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        app.processEvents()
         if predicate():
             return True
         time.sleep(0.005)
@@ -41,164 +29,240 @@ class FakeHardware:
 
     def collect(self):
         self.count += 1
-        return HardwareSnapshot(metrics={"cpu_utilization": Metric.available(self.count, "%")})
+        return HardwareSnapshot(metrics={
+            "cpu_utilization": Metric.available(self.count, "%", "test fixture")})
 
     def close(self):
         self.closed.set()
 
 
-def test_slow_network_does_not_block_hardware_or_qt_and_close_cleans_workers(qt_app, tmp_path, monkeypatch):
-    hardware = FakeHardware()
+@pytest.fixture
+def hardware(monkeypatch):
+    collector = FakeHardware()
+    monkeypatch.setattr("unsloth_monitor.runtime.create_collector", lambda: collector)
+    return collector
+
+
+def put_result(worker, result):
+    with worker._lock:
+        worker._latest = result
+
+
+def test_slow_network_does_not_block_hardware_or_update_reads_and_close_joins(monkeypatch, hardware):
     entered = threading.Event()
     release = threading.Event()
     client_closed = threading.Event()
 
     class SlowClient:
-        def __init__(self, **kwargs):
+        def __init__(self, **_kwargs):
             pass
 
         def poll(self):
             entered.set()
-            release.wait(3)
+            release.wait(2)
             return ConnectionSnapshot(status=ConnectionStatus.OFFLINE)
 
         def close(self):
             client_closed.set()
+            release.set()
 
-    monkeypatch.setattr("unsloth_monitor.app.create_collector", lambda: hardware)
-    monkeypatch.setattr("unsloth_monitor.app.UnslothClient", SlowClient)
-    window = Dashboard()
-    controller = Controller(window, Settings(interval=0.02), tmp_path / "settings.json")
-    window.show()
-    controller.start()
+    monkeypatch.setattr("unsloth_monitor.runtime.UnslothClient", SlowClient)
+    monitor = Monitor(Settings())
+    monitor.start()
+    monitor.start()
     try:
-        assert pump(qt_app, lambda: entered.is_set() and hardware.count >= 3)
-        controller.tick()
-        assert window.readings["cpu_utilization"].value.text() != "—"
+        assert entered.wait(1)
+        assert wait_until(lambda: hardware.count >= 1)
+        for _ in range(3):
+            previous = hardware.count
+            monitor.refresh()
+            assert wait_until(lambda: hardware.count > previous)
+        before = time.monotonic()
+        sample, _ = monitor.take_updates()
+        assert time.monotonic() - before < 0.1
+        assert sample.metrics["cpu_utilization"].value >= 3
         assert not client_closed.is_set()
-        # The real close event is ignored until workers stop; Qt remains usable.
-        window.close()
-        assert controller.closing
-        assert window.isVisible()
-        release.set()
-        assert pump(qt_app, lambda: not window.isVisible())
-        assert hardware.closed.is_set()
-        assert client_closed.is_set()
-        assert not controller.hardware.thread.is_alive()
-        assert not controller.network.thread.is_alive()
-        assert not controller.timer.isActive()
+        before = time.monotonic()
+        monitor.close()
+        assert time.monotonic() - before < 0.5
+        assert hardware.closed.is_set() and client_closed.is_set()
+        assert not monitor.hardware.thread.is_alive()
+        assert not monitor.network.thread.is_alive()
+        assert monitor.take_updates() == (None, None)
     finally:
         release.set()
-        controller.shutdown()
-        controller.hardware.thread.join(3)
-        controller.network.thread.join(3)
-        controller.timer.stop()
-        window.allow_close = True
-        window.close()
+        monitor.close()
 
 
-def test_minimize_restore_keeps_old_mailbox_readings_stale(qt_app, tmp_path, monkeypatch):
-    monkeypatch.setattr("unsloth_monitor.app.create_collector", FakeHardware)
-    window = Dashboard()
-    controller = Controller(window, Settings(), tmp_path / "settings.json")
-    window.show()
-    qt_app.processEvents()
+def test_old_mailbox_timestamps_are_stale_once_and_values_keep_provenance(hardware):
+    monitor = Monitor(Settings())
+    old = time.time() - 120
+    metric = Metric(value=17, unit="%", source="fixture", timestamp=old,
+                    availability=Availability.AVAILABLE)
     try:
-        window.showMinimized()
-        qt_app.processEvents()
-        assert not controller.visible
-        assert controller.hardware._interval == 30
-        assert controller.network._interval == 30
-        old = time.time() - 120
-        controller.hardware._latest = HardwareSnapshot(
-            metrics={"cpu_utilization": Metric.available(17, "%")}, timestamp=old)
-        controller.network._latest = (0, ConnectionSnapshot(status=ConnectionStatus.ONLINE,
-                                                            timestamp=old))
-        controller.tick()
-        assert window.readings["cpu_utilization"].value.text() == "—"
-        window.showNormal()
-        qt_app.processEvents()
-        assert controller.visible
-        assert controller.hardware._interval == 5
-        assert controller.network._interval == 5
-        assert window.readings["cpu_utilization"].value.text() == "Stale"
-        assert "stale" in window.connection_detail.text()
-        assert controller.hardware._wake.is_set()
-        assert controller.network._wake.is_set()
+        put_result(monitor.hardware, HardwareSnapshot(metrics={"cpu_utilization": metric}, timestamp=old))
+        put_result(monitor.network, (0, ConnectionSnapshot(status=ConnectionStatus.ONLINE,
+                   metrics={"loaded_model": replace(metric, value="old model", unit="")}, timestamp=old)))
+        hardware_sample, connection = monitor.take_updates()
+        assert hardware_sample.metrics["cpu_utilization"].availability == Availability.STALE
+        assert hardware_sample.metrics["cpu_utilization"].timestamp == old
+        assert hardware_sample.metrics["cpu_utilization"].source == "fixture"
+        assert hardware_sample.timestamp == old
+        assert connection.status == ConnectionStatus.CHECKING
+        assert connection.metrics["loaded_model"].availability == Availability.STALE
+        assert connection.timestamp == old
+        assert "stale" in connection.detail
+        assert monitor.take_updates() == (None, None)
     finally:
-        controller.timer.stop()
-        window.allow_close = True
-        window.close()
+        monitor.close()
 
 
-def test_token_validation_matches_client_and_never_accepts_embedded_spaces(qt_app):
-    dialog = SettingsDialog(Settings(), "abc def")
-    dialog.validate()
-    assert dialog.result() != QDialog.DialogCode.Accepted
-    assert "without spaces" in dialog.error.text()
-    dialog.token.setText("abc.def-ghi_123")
-    dialog.validate()
-    assert dialog.result() == QDialog.DialogCode.Accepted
-
-
-def test_default_window_fits_readings_and_displays_collector_units(qt_app):
-    window = Dashboard()
-    window.show_hardware(HardwareSnapshot(metrics={
-        "cpu_name": Metric.available("Fixture processor name"),
-        "cpu_temperature": Metric.available(51.5, "°C"),
-        "gpu_name": Metric.available("Fixture graphics processor"),
-        "gpu_power": Metric.available(137.5, "W"),
-        "vram_used": Metric.available(5 * 1024**3, "B"),
-        "vram_total": Metric.available(16 * 1024**3, "B"),
-        "uptime": Metric.available(24200.5, "s"),
-    }, hostname="fixture-machine"))
-    window.show_connection(ConnectionSnapshot(status=ConnectionStatus.OFFLINE,
-        detail="Local endpoint is unreachable or timed out; this does not prove a crash."))
-    window.show()
-    qt_app.processEvents()
+def test_received_sample_becomes_stale_without_a_new_poll(hardware, monkeypatch):
+    monitor = Monitor(Settings())
     try:
-        assert window.readings["cpu_temperature"].value.text() == "52 °C"
-        assert window.readings["gpu_power"].value.text() == "137.5 W"
-        assert window.readings["vram_used"].value.text() == "5.0 GiB / 16.0 GiB"
-        assert window.readings["uptime"].value.text() == "06:43:20"
-        assert window.centralWidget().verticalScrollBar().maximum() == 0
-        assert window.centralWidget().horizontalScrollBar().maximum() == 0
+        sample = hardware.collect()
+        put_result(monitor.hardware, sample)
+        assert monitor.take_updates()[0] == sample
+        observed = time.monotonic()
+        monkeypatch.setattr("unsloth_monitor.runtime.time.monotonic", lambda: observed + 16)
+        stale, _ = monitor.take_updates()
+        assert stale.metrics["cpu_utilization"].availability == Availability.STALE
+        assert stale.timestamp == sample.timestamp
+        assert monitor.take_updates() == (None, None)
     finally:
-        window.allow_close = True
-        window.close()
+        monitor.close()
 
 
-def test_real_second_process_is_rejected_and_lock_is_released(tmp_path):
-    env = os.environ.copy()
-    env["QT_QPA_PLATFORM"] = "offscreen"
-    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
-    config = tmp_path / "app-config"
-    # A bound, non-listening loopback port ensures a controlled offline endpoint
-    # without probing any user service on the default port.
-    with socket.socket() as reserved:
-        reserved.bind(("127.0.0.1", 0))
-        port = reserved.getsockname()[1]
-        save_settings(config / "settings.json", Settings(f"http://127.0.0.1:{port}/v1"))
-        command = [sys.executable, "-m", "unsloth_monitor.app", "--config-dir", str(config)]
-        process = subprocess.Popen(command + ["--quit-after", "3"], env=env,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        try:
-            deadline = time.monotonic() + 5
-            while not (config / "instance.lock").exists() and time.monotonic() < deadline:
-                if process.poll() is not None:
-                    pytest.fail(f"First application exited early: {process.communicate()}")
-                time.sleep(0.01)
-            assert (config / "instance.lock").exists()
-            duplicate = subprocess.run(command + ["--smoke-test"], env=env, capture_output=True,
-                                       timeout=8)
-            assert duplicate.returncode == 2, duplicate.stderr.decode(errors="replace")
-            _, errors = process.communicate(timeout=10)
-            assert process.returncode == 0, errors.decode(errors="replace")
-            assert not (config / "instance.lock").exists()
-            reopened = subprocess.run(command + ["--quit-after", "0.05"], env=env,
-                                      capture_output=True, timeout=8)
-            assert reopened.returncode == 0, reopened.stderr.decode(errors="replace")
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                process.communicate(timeout=5)
+def test_quiet_mode_uses_30_seconds_and_return_refreshes_both_workers(hardware):
+    monitor = Monitor(Settings())
+    try:
+        assert monitor.hardware._interval == monitor.network._interval == 5
+        monitor.set_quiet(True)
+        assert monitor.quiet
+        assert monitor.hardware._interval == monitor.network._interval == 30
+        monitor.configure(Settings(interval=10))
+        assert monitor.hardware._interval == monitor.network._interval == 30
+        monitor.hardware._wake.clear()
+        monitor.network._wake.clear()
+        monitor.set_quiet(False)
+        assert not monitor.quiet
+        assert monitor.hardware._interval == monitor.network._interval == 10
+        assert monitor.hardware._wake.is_set() and monitor.network._wake.is_set()
+    finally:
+        monitor.close()
+
+
+def test_quiet_sample_does_not_expire_before_its_next_expected_collection(hardware):
+    monitor = Monitor(Settings())
+    monitor.set_quiet(True)
+    try:
+        timestamp = time.time() - 25
+        put_result(monitor.hardware, HardwareSnapshot(metrics={
+            "cpu_utilization": Metric.available(1, "%")}, timestamp=timestamp))
+        sample, _ = monitor.take_updates()
+        assert sample.metrics["cpu_utilization"].availability == Availability.AVAILABLE
+        monitor.set_quiet(False)
+        sample, _ = monitor.take_updates()
+        assert sample.metrics["cpu_utilization"].availability == Availability.STALE
+    finally:
+        monitor.close()
+
+
+def test_new_settings_discard_old_inflight_result_and_promptly_start_new_request(monkeypatch, hardware):
+    old_entered = threading.Event()
+    old_release = threading.Event()
+    new_entered = threading.Event()
+    new_release = threading.Event()
+
+    class Client:
+        def __init__(self, base_url, token):
+            self.old = base_url.endswith(":8888/v1")
+            self.release = old_release if self.old else new_release
+
+        def poll(self):
+            (old_entered if self.old else new_entered).set()
+            self.release.wait(2)
+            return ConnectionSnapshot(status=ConnectionStatus.ONLINE, metrics={
+                "loaded_model": Metric.available("old" if self.old else "new", source="test fixture")})
+
+        def close(self):
+            self.release.set()
+
+    monkeypatch.setattr("unsloth_monitor.runtime.UnslothClient", Client)
+    monitor = Monitor(Settings())
+    monitor.start()
+    try:
+        assert old_entered.wait(1)
+        monitor.take_updates()
+        monitor.configure(Settings("http://localhost:9999/v1", 5), "test-only-token")
+        assert monitor.settings.base_url == "http://127.0.0.1:9999/v1"
+        assert new_entered.wait(1)
+        _, connection = monitor.take_updates()
+        assert connection.status == ConnectionStatus.CHECKING
+        assert not connection.metrics
+        assert "test-only-token" not in repr(connection)
+        new_release.set()
+        received = []
+
+        def got_new():
+            connection = monitor.take_updates()[1]
+            if connection is not None:
+                received.append(connection)
+            return bool(received)
+
+        assert wait_until(got_new)
+        assert received[-1].metrics["loaded_model"].value == "new"
+    finally:
+        new_release.set()
+        old_release.set()
+        monitor.close()
+    assert monitor.token == ""
+
+
+def test_offline_snapshot_replaces_all_prior_online_metrics(hardware):
+    monitor = Monitor(Settings())
+    try:
+        put_result(monitor.network, (0, ConnectionSnapshot(status=ConnectionStatus.ONLINE,
+                   metrics={"loaded_model": Metric.available("fixture model")})))
+        assert monitor.take_updates()[1].metrics["loaded_model"].value == "fixture model"
+        put_result(monitor.network, (0, ConnectionSnapshot(status=ConnectionStatus.OFFLINE,
+                   metrics={"loaded_model": Metric(detail="Offline")})))
+        connection = monitor.take_updates()[1]
+        assert connection.status == ConnectionStatus.OFFLINE
+        assert connection.metrics["loaded_model"].value is None
+        assert monitor.take_updates() == (None, None)
+    finally:
+        monitor.close()
+
+
+@pytest.mark.parametrize("settings, token", [
+    (Settings(interval=1), ""), (Settings(interval=True), ""),
+    (Settings("http://remote.invalid/v1"), ""),
+    (Settings(), "secret contains spaces"), (Settings(), "secret\r\nInjected: yes"),
+])
+def test_bad_configuration_rejected_without_mutating_live_preferences(hardware, settings, token):
+    monitor = Monitor(Settings())
+    try:
+        with pytest.raises(ValueError) as error:
+            monitor.configure(settings, token)
+        assert "secret" not in str(error.value)
+        assert monitor.settings == Settings()
+        assert monitor.token == ""
+        assert monitor._revision == 0
+    finally:
+        monitor.close()
+
+
+def test_close_before_start_is_idempotent_and_prevents_restarting(hardware):
+    monitor = Monitor(Settings(), "test-only-token")
+    monitor.close()
+    monitor.close()
+    monitor.refresh()
+    assert hardware.closed.is_set()
+    assert monitor.token == ""
+    assert not monitor.hardware.thread.is_alive()
+    assert not monitor.network.thread.is_alive()
+    with pytest.raises(RuntimeError):
+        monitor.start()
+    with pytest.raises(RuntimeError):
+        monitor.configure(Settings())

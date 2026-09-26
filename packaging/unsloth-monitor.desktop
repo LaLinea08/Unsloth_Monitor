@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=Unsloth Monitor
-Comment=Passive local hardware and Unsloth connection monitor
+Comment=Passive local hardware and Unsloth monitor in your terminal
 Exec=unsloth-monitor
 Icon=unsloth-monitor
-Terminal=false
+Terminal=true
 Categories=System;Monitor;
 StartupNotify=false

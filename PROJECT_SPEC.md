@@ -1,3 +1,20 @@
+# Current user-approved interface amendment — 2026-09-26
+
+The user explicitly changed the interface requirement during implementation:
+**“Run inside my normal terminal and inherit its appearance.”**
+
+This supersedes the original graphical-widget/Qt preference and prohibition on
+terminal rendering below. The primary application is now a Linux curses terminal
+dashboard using the host terminal's default foreground/background, font, palette
+and transparency. Do not imitate a fixed terminal theme in a Qt window. Keep all
+passive monitoring, accuracy, manual-launch, Linux-first and release constraints.
+Do not bundle Qt in the primary package. Terminal minimization is not portably
+observable; provide an explicit quiet mode with reduced polling and document it.
+
+The original complete brief is retained below for all other requirements.
+
+---
+
 You are Codex. Help me build a real desktop application called “Unsloth Monitor”.
 
 This is the complete project specification. Read it before starting, inspect the existing workspace, and then begin implementing the project.

@@ -6,7 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'packaging/**'
-      - 'scripts/build_appimage.sh'
+      - 'scripts/**'
       - 'requirements-dev.txt'
       - 'pyproject.toml'
       - '.github/workflows/linux-package.yml'
@@ -15,18 +15,12 @@ permissions:
 jobs:
   appimage:
     runs-on: ubuntu-22.04
-    env:
-      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
-      - name: Provision ephemeral CI display dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libegl1 libgl1 libopengl0 libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libxcb-render-util0 libxcb-image0
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip install --no-build-isolation --no-deps -e .
       - run: python -m pytest -q
@@ -45,23 +39,27 @@ jobs:
           APPIMAGETOOL: ${{ runner.temp }}/appimagetool-extracted/squashfs-root/AppRun
           APPIMAGE_RUNTIME: ${{ runner.temp }}/runtime-x86_64
         run: bash scripts/build_appimage.sh
-      - name: Launch packaged payload without development Python
+      - name: Launch packaged terminal payload without development Python
         run: |
           mkdir -p "$RUNNER_TEMP/package-extracted"
           cd "$RUNNER_TEMP/package-extracted"
           "$GITHUB_WORKSPACE/dist/Unsloth-Monitor-x86_64.AppImage" --appimage-extract
-          test -n "$(find squashfs-root -name libqxcb.so -print -quit)"
-          test -n "$(find squashfs-root -name 'libqwayland*.so' -print -quit)"
-          test -n "$(find squashfs-root -name libqoffscreen.so -print -quit)"
-          test -n "$(find squashfs-root -name libqsvg.so -print -quit)"
-          env -u PYTHONPATH -u VIRTUAL_ENV ./squashfs-root/AppRun --smoke-test --config-dir "$RUNNER_TEMP/package-config" --screenshot "$GITHUB_WORKSPACE/dist/package-smoke.png"
-          QT_QPA_PLATFORM=xcb xvfb-run -a env -u PYTHONPATH -u VIRTUAL_ENV ./squashfs-root/AppRun --smoke-test --config-dir "$RUNNER_TEMP/package-config-xcb"
+          if find squashfs-root -iname '*Qt6*' -o -iname '*PySide6*' | grep -q .; then
+            echo 'Unexpected Qt payload in terminal build' >&2
+            exit 1
+          fi
+          python "$GITHUB_WORKSPACE/scripts/pty_smoke.py" --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" --output "$GITHUB_WORKSPACE/dist/terminal-smoke.txt"
+      - name: Observe packaged process resources (not hosting benchmarks)
+        run: |
+          python scripts/measure_overhead.py --duration 60 --warmup 10 --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" > dist/overhead-default.json
+          python scripts/measure_overhead.py --duration 60 --warmup 10 --quiet --executable "$RUNNER_TEMP/package-extracted/squashfs-root/AppRun" > dist/overhead-quiet.json
       - uses: actions/upload-artifact@v4
         with:
           name: Unsloth-Monitor-linux-x86_64-candidate
           path: |
             dist/*.AppImage
             dist/SHA256SUMS
-            dist/package-smoke.png
+            dist/terminal-smoke.txt
+            dist/overhead-*.json
           retention-days: 14
 # No public release publication. License and actual-machine acceptance pending.

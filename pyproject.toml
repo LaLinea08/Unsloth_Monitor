@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "unsloth-monitor"
 version = "0.1.0.dev0"
-description = "A passive native Linux desktop companion for Unsloth"
+description = "A passive Linux terminal companion for Unsloth"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
-dependencies = ["PySide6-Essentials==6.11.2"]
+dependencies = []
 
 [project.scripts]
 unsloth-monitor = "unsloth_monitor.app:main"
