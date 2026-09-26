@@ -1,0 +1,67 @@
+name: Linux package candidate
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/linux-prototype]
+    paths:
+      - 'src/**'
+      - 'packaging/**'
+      - 'scripts/build_appimage.sh'
+      - 'requirements-dev.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/linux-package.yml'
+permissions:
+  contents: read
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Provision ephemeral CI display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libegl1 libgl1 libopengl0 libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libxcb-render-util0 libxcb-image0
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip install --no-build-isolation --no-deps -e .
+      - run: python -m pytest -q
+      - name: Verify official appimagetool and runtime
+        run: |
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/appimagetool.AppImage" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $RUNNER_TEMP/appimagetool.AppImage" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/appimagetool.AppImage"
+          mkdir -p "$RUNNER_TEMP/appimagetool-extracted"
+          cd "$RUNNER_TEMP/appimagetool-extracted"
+          "$RUNNER_TEMP/appimagetool.AppImage" --appimage-extract
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/runtime-x86_64" https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+          echo "1cc49bcf1e2ccd593c379adb17c9f85a36d619088296504de95b1d06215aebbf  $RUNNER_TEMP/runtime-x86_64" | sha256sum -c -
+      - name: Build candidate
+        env:
+          APPIMAGETOOL: ${{ runner.temp }}/appimagetool-extracted/squashfs-root/AppRun
+          APPIMAGE_RUNTIME: ${{ runner.temp }}/runtime-x86_64
+        run: bash scripts/build_appimage.sh
+      - name: Launch packaged payload without development Python
+        run: |
+          mkdir -p "$RUNNER_TEMP/package-extracted"
+          cd "$RUNNER_TEMP/package-extracted"
+          "$GITHUB_WORKSPACE/dist/Unsloth-Monitor-x86_64.AppImage" --appimage-extract
+          test -n "$(find squashfs-root -name libqxcb.so -print -quit)"
+          test -n "$(find squashfs-root -name 'libqwayland*.so' -print -quit)"
+          test -n "$(find squashfs-root -name libqoffscreen.so -print -quit)"
+          test -n "$(find squashfs-root -name libqsvg.so -print -quit)"
+          env -u PYTHONPATH -u VIRTUAL_ENV ./squashfs-root/AppRun --smoke-test --config-dir "$RUNNER_TEMP/package-config" --screenshot "$GITHUB_WORKSPACE/dist/package-smoke.png"
+          QT_QPA_PLATFORM=xcb xvfb-run -a env -u PYTHONPATH -u VIRTUAL_ENV ./squashfs-root/AppRun --smoke-test --config-dir "$RUNNER_TEMP/package-config-xcb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Unsloth-Monitor-linux-x86_64-candidate
+          path: |
+            dist/*.AppImage
+            dist/SHA256SUMS
+            dist/package-smoke.png
+          retention-days: 14
+# No public release publication. License and actual-machine acceptance pending.
