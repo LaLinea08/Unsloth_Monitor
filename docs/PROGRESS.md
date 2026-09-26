@@ -1,7 +1,11 @@
 # Project progress
 
 Updated: 2026-09-26. License: **undecided**, as explicitly requested by the user.
-No public release is authorized while the license remains undecided.
+The user explicitly authorized merging the release workflow and automatically
+publishing this and future development prereleases while keeping the license
+undecided. That exception resolves the earlier publication hold for development
+prereleases. The first public release is available with one AppImage download;
+stable release and Fedora/CachyOS acceptance remain pending.
 
 ## Current direction
 
@@ -44,11 +48,15 @@ repository's isolated environment. Neither specified Linux computer was
 accessible. Windows hardware telemetry and interactive application launch are
 explicitly unsupported; portable tests do not establish a Windows port.
 
-- Current complete local terminal-era run: **121 passed, one Linux-only lock
+- Earlier complete local terminal-era run: **121 passed, one Linux-only lock
   test skipped on Windows**. Ruff passed for the complete tree.
 - Ubuntu 22.04 x86_64 CI: **122 passed** on **Python 3.11.16** and **3.14.7**
   at `abc2b39` ([checks](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025134)).
   Actual source curses launch in a pseudo-terminal passed on both versions.
+- Release automation revision: **163 passed** on Ubuntu 22.04 x86_64 with
+  **Python 3.11.16** and **3.14.7**. The Python 3.11 package build, extracted
+  terminal launch, notice checks and resource observations also passed in
+  [build 36265549673](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36265549673).
 - Current terminal renderer/keyboard subset: **23 passed in 0.07 seconds**.
   Covers 80×24 layout, narrow/wide Unicode bounds, source details, control-character
   filtering, stale/missing values, quiet/refresh/interval keys, hidden token
@@ -81,17 +89,25 @@ are not target-machine acceptance claims. No inference benchmark was run.
 [PERFORMANCE.md](PERFORMANCE.md) distinguishes synthetic PTY observation from
 actual emulator overhead and superseded Qt results.
 
-The Ubuntu 22.04 x86_64 / Python 3.11 AppImage candidate built successfully and
+The earlier Ubuntu 22.04 x86_64 / Python 3.11 AppImage candidate built successfully and
 its extracted bundled runtime passed a Linux pseudo-terminal smoke test without
-Qt. The final terminal candidate at `abc2b39` is 17,132,024 bytes with SHA-256
+Qt. The terminal candidate at `abc2b39` was 17,132,024 bytes with SHA-256
 `920942126725475a4393f7632a7c7b523ff329dff9bdc3d3ba054470b8ac7dec`.
-[Final build passed](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155);
-[download candidate artifact](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155/artifacts/10913450556)
-(14-day retention, GitHub sign-in may be required). SHA256SUMS was corrected to
-verify from the artifact directory. Source is in
-[draft PR #1](https://github.com/LaLinea08/Unsloth_Monitor/pull/1).
-This is a CI candidate, not actual target-desktop acceptance. Release remains
-blocked on license confirmation and real-machine acceptance.
+[Build passed](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155).
+SHA256SUMS was corrected to verify from the artifact directory. Source is in
+[merged PR #1](https://github.com/LaLinea08/Unsloth_Monitor/pull/1).
+
+The first public development prerelease,
+[dev-c40c3eebc273-36265549673](https://github.com/LaLinea08/Unsloth_Monitor/releases/tag/dev-c40c3eebc273-36265549673),
+was published on 2026-09-26 at 19:28:12 UTC after the owner's explicit approval.
+Its single AppImage is 21,912,056 bytes, including bundled third-party notices
+and source provenance, with SHA-256
+`33e1aab95519606198c2bd7a4d093965953c54eb24cf6d1e83d9ff72504603c3`.
+GitHub confirms `draft=false`, `prerelease=true`; the anonymous asset download
+responds successfully with the expected size. The repository publication gate
+is enabled. Successful trusted-branch builds automatically publish a new
+versioned prerelease with one AppImage asset and checksum/test evidence in its
+notes. Neither publication nor CI success establishes target-desktop acceptance.
 
 ## Known limits
 

@@ -1,3 +1,17 @@
+# Release automation request — 2026-09-26
+
+The user requested a release each time so that only one file is downloaded,
+then explicitly authorized merging the release workflow and automatically
+publishing this and future development releases while keeping the license
+undecided: **“yes you can do it automaticly.”**
+
+Publish a development prerelease after each successful trusted-branch Linux
+package build, with one AppImage asset and checksum/test evidence in its notes.
+This is an explicit exception to the original license-before-public-release
+requirement below for development prereleases only. No project license has been
+selected. Include third-party notices and source provenance. Fedora/CachyOS
+and stable acceptance remain pending.
+
 # Current user-approved interface amendment — 2026-09-26
 
 The user explicitly changed the interface requirement during implementation:

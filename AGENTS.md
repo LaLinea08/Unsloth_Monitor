@@ -18,6 +18,11 @@ validation without actual results from those separate computers.
   minimization is not observable portably; explicit quiet mode polls every 30s.
   Keep polling and all retained data bounded.
 - Never commit credentials, private logs, model weights or generated packages.
-- License is undecided: do not publish a public release until the user confirms it.
+- The user requested automatic releases with one AppImage per successful build.
+  On 2026-09-26 the user explicitly authorized merging the release workflow and
+  automatically publishing this and future development prereleases while the
+  license stays undecided. This resolves the earlier hold for development
+  prereleases. Do not select a project license or claim stable acceptance.
+  Include bundled third-party notices.
 - Record exact test environments and outstanding validation in docs/PROGRESS.md.
 - Use an isolated environment and `python -m pytest`; no global package installs.

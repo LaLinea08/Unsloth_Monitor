@@ -2,6 +2,10 @@
 
 ## 0.1.0.dev0 — development prototype
 
+- Owner-authorized automatic public development prereleases after successful
+  trusted-branch builds, with one AppImage asset and checksum/test evidence in
+  notes. The project license remains undecided; stable acceptance is pending.
+
 - User-approved switch to a terminal-native interface inheriting the host
   terminal's font/colors/transparency; removed Qt from primary runtime/package.
 - Keyboard settings, source details, explicit quiet mode and Linux kernel lock.

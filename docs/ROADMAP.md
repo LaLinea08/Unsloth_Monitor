@@ -26,10 +26,11 @@ the first milestone still requires actual Fedora execution and measurements.
    keyboard input, and restoration on exit. Validate both target desktops,
    packaged overhead, and hours-long operation. Inference comparisons need
    separate explicit approval.
-5. **Publication.** Confirm the license, complete real-machine acceptance, and
-   publish an authorized release with one clear primary download. The license
-   remains undecided, so public release is blocked. Keep binaries in workflow
-   artifacts/release assets rather than the source repository.
+5. **Publication.** The owner explicitly authorized automatic public development
+   prereleases with one AppImage and checksum/test evidence in notes, while
+   keeping the project license undecided. Complete license selection and
+   real-machine acceptance before a stable release. Keep
+   binaries in workflow artifacts/release assets, outside the source repository.
 6. **Later expansion.** Broaden tested distributions and terminals, consider
    additional GPU vendors and multiple-GPU selection, then implement and test
    Windows telemetry/terminal packaging. Measure Windows independently before
