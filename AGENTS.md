@@ -6,7 +6,9 @@ validation without actual results from those separate computers.
 
 - The user changed the UI requirement to run inside their normal terminal and
   inherit its appearance. Use the terminal-native curses dashboard, no fixed
-  theme and no Qt dependency in the primary package. See PROJECT_SPEC amendment.
+  RGB theme and no Qt dependency in the primary package. Use the terminal's ANSI
+  palette for readable accents and its default background. Manual desktop launch
+  may open the existing host terminal. See PROJECT_SPEC amendments.
   Never build a web dashboard or inference client.
 - Passive, bounded, normal-user reads only. No inference requests, model loads,
   compute runtimes, hardware changes, startup entries, or services.

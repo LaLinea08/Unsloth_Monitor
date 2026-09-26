@@ -1,8 +1,9 @@
 # Installation and packaging
 
-The primary application runs inside your existing terminal and uses its default
-font/colors/background/transparency. It does not launch or configure a custom
-terminal emulator. No Qt, embedded browser or inference runtime is bundled.
+The application uses your installed terminal's font, palette, background and
+transparency. Launching from an existing terminal keeps that terminal; opening
+the AppImage from the desktop opens an installed terminal automatically. No Qt,
+terminal emulator, embedded browser or inference runtime is bundled.
 
 ## Development AppImage
 
@@ -20,10 +21,21 @@ the release notes:
 sha256sum Unsloth-Monitor-x86_64.AppImage
 ```
 
-Then launch:
+Allow the downloaded file to run: in your file manager's properties, enable
+the executable permission (often called **Allow executing file as program**),
+or use:
 
 ```sh
 chmod +x Unsloth-Monitor-x86_64.AppImage
+```
+
+You can then double-click the AppImage. If the file manager asks whether to
+open or execute it, choose **Run/Execute**. Some file managers or desktop
+security policies require their own explicit approval for downloaded
+executables; the monitor does not change those policies. You can also launch
+from your normal terminal:
+
+```sh
 ./Unsloth-Monitor-x86_64.AppImage
 ```
 
@@ -42,10 +54,23 @@ If mounting is unavailable, extract and run from the same terminal:
 ./squashfs-root/AppRun
 ```
 
-Running without an attached terminal prints launch instructions and exits. To
-launch directly from the desktop menu, optionally install the supplied desktop
-entry as described below. Your terminal emulator provides Wayland/X11 support;
-the monitor neither selects nor changes its compositor/backend.
+When opened without an attached terminal, the app first uses
+`xdg-terminal-exec` if installed, which follows the desktop's configured terminal.
+Otherwise it honors a supported terminal executable named by `TERMINAL` or
+KDE's existing `TerminalApplication` preference, then tries the desktop's usual
+terminal: Konsole on KDE, GNOME Terminal on GNOME, or Xfce Terminal on XFCE.
+Installed generic alternatives are the final fallback. Preferences containing
+shell commands are not executed, and `TERM` is never treated as a program name.
+No terminal is installed or configured by the monitor.
+
+The desktop handoff requires an active graphical session and an installed
+terminal. If discovery fails, run the AppImage from your terminal to see the
+launch error. A guard prevents repeated terminal launches if an emulator fails
+to provide a TTY. The AppImage reopens its original downloaded file for the
+terminal child, so it does not depend on a launcher process retaining a
+temporary mount. Native file-manager, Konsole and Wayland/X11 behavior still
+requires target-desktop validation; CI's terminal stand-in does not establish it.
+For a desktop-menu entry, see the optional instructions below.
 
 ## Controls and preferences
 
@@ -57,7 +82,9 @@ in process memory only. Normal preferences are saved on explicit edits under
 
 The terminal does not expose a portable minimized-window signal. Use quiet mode
 when leaving it in the background; foreground/default polling is 5 seconds.
-Closing the terminal ends the process. No service, tray process or startup
+Closing the terminal or the monitor's tab ends the dashboard and its collectors;
+`q` closes the dashboard and returns to the existing shell, or lets a terminal
+opened for the AppImage close normally. No service, tray process or startup
 registration is installed. A kernel-held lock prevents duplicate instances using
 the same configuration directory. The empty lock file may remain after exit;
 only an active kernel lock blocks another instance.
@@ -78,7 +105,8 @@ files, drivers or other applications' configuration belong to this monitor.
 
 The Linux package workflow runs on every push to `main` or
 `codex/linux-prototype`, and manual runs on those branches. After lint, tests,
-packaged terminal launch and resource observations pass, a separate job prepares
+packaged terminal launch, desktop-handoff smoke and resource observations pass,
+a separate job prepares
 and publishes a development prerelease with one `Unsloth-Monitor-x86_64.AppImage` asset.
 Its notes contain the checksum, source commit, build link and test observations.
 GitHub also provides optional source archives; they are not needed to run the app.
@@ -103,6 +131,21 @@ the AppImage, including the AppImage runtime/libfuse/squashfuse source archives.
 See [third-party inventory](../packaging/THIRD-PARTY.md) for contents and limits.
 
 CI tests source and extracted packaged launches in a pseudoterminal, outside the
-checkout and without development PYTHONPATH/VIRTUAL_ENV. This exercises curses
-and clean shutdown; it does not certify Konsole, any physical display, mounted
-FUSE, GPU sensors, or the user's installed Unsloth.
+checkout and without development PYTHONPATH/VIRTUAL_ENV. The additional launcher
+smoke starts without a TTY, uses a test-only `xdg-terminal-exec` stand-in to open
+a PTY, and runs the actual dashboard. It checks argument preservation, output,
+clean child exit and release of the instance lock. To run these launch checks
+inside the isolated Linux developer environment:
+
+```sh
+python scripts/pty_smoke.py
+python scripts/launcher_smoke.py
+python scripts/launcher_smoke.py --executable "$PWD/dist/Unsloth-Monitor-x86_64.AppImage" --appimage
+```
+
+The last command runs the real outer AppImage with `APPIMAGE_EXTRACT_AND_RUN=1`,
+including the second outer-file launch inside the fixture terminal. It validates
+the bundled runtime and handoff without requiring FUSE or a graphical display.
+This is not a real file-manager click or terminal-emulator acceptance test and
+does not certify Konsole, physical displays, mounted FUSE, GPU sensors, or the
+user's installed Unsloth. See PROGRESS.md for completed runs and pending checks.

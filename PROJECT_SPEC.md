@@ -1,3 +1,16 @@
+# Readability, telemetry and click-launch amendment — 2026-09-26
+
+The user supplied a running terminal screenshot and requested colors, a less
+cluttered layout, more verified Unsloth information, and an AppImage that opens
+its console when clicked. Use restrained accents from the host terminal's ANSI
+palette while preserving its font and default background. Put hardware first,
+keep related values close, and group unavailable fields with details on demand.
+A manual launch without a TTY may open the configured/installed host terminal;
+this does not authorize autostart, terminal installation or configuration writes.
+Add verified bounded passive telemetry only, accurately distinguish in-flight
+operations from token decoding and loaded-model residency, and retain honest
+unavailable states for information without a suitable source.
+
 # Release automation request — 2026-09-26
 
 The user requested a release each time so that only one file is downloaded,

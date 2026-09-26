@@ -13,14 +13,16 @@ The user explicitly requested the application **inside the computer's normal
 terminal**, inheriting its appearance. This supersedes the original Qt-widget
 requirement. The earlier Qt implementation and UI tests were removed. Current
 runtime code has no Qt dependency and does not define a font, fixed color
-palette, or background theme. PROJECT_SPEC.md preserves the original brief;
+palette, or background theme. The latest readability update uses semantic colors
+from the existing ANSI palette, groups hardware readings in a capped-width
+layout, and collapses unavailable Unsloth fields behind the source view. PROJECT_SPEC.md preserves the original brief;
 the latest user decision governs the interface.
 
 ## Implemented
 
 - Terminal-native curses dashboard, pure bounded renderer, responsive terminal
   resize, scrolling on smaller terminals, honest missing readings, and a source/
-  unit/time/state view. Unknown bars use question marks, not fabricated zero.
+  unit/time/state view. Unknown bars carry an explicit missing marker, never zero.
 - Keyboard controls: q quit, r refresh, s connection settings, i interval,
   p quiet mode, d sources, arrows/Page Up/Page Down scroll. Token input is hidden,
   bounded, and session-only; URL/interval preferences can be saved.
@@ -30,7 +32,8 @@ the latest user decision governs the interface.
   skipped optional sensor inputs for suspended GPUs.
 - Source-verified local liveness adapter with strict signature, two-second
   overall deadline, 32 KiB response limit, reuse, authentication classification,
-  and no raw credential/response logging. Model/inference fields remain absent.
+  and no raw credential/response logging. Optional operation-registry reads now
+  share that deadline. Loaded-model details and token metrics remain unavailable.
 - Independent hardware/network workers, one replaceable result per source,
   bounded backoff, five-second default intervals, explicit 30-second quiet mode,
   stale-state handling, and rejection of obsolete configuration results.
@@ -40,6 +43,32 @@ the latest user decision governs the interface.
 - Read-only diagnostic and Linux process-tree observer; source and package
   pseudo-terminal CI configuration, AppImage build configuration, optional
   terminal desktop launcher, and supporting documentation.
+
+## Readability and desktop-launch update
+
+- Hardware-first layout, restrained ANSI palette colors, default terminal
+  background, monochrome/NO_COLOR fallback, and compact unavailable telemetry.
+- Optional in-flight operation count and active model labels from a verified
+  in-memory Unsloth route. Account-scoped, may need authentication, and includes
+  loading/queue/tool phases; never labeled loaded model or decode-only generation.
+- Manual AppImage launch without a TTY opens an existing desktop terminal,
+  honoring configured launchers and KDE preferences with safe argv, restored
+  system library paths, a recursion guard and outer-AppImage relaunch.
+- Source and packaged launcher tests exercise no-TTY handoff through a PTY
+  stand-in. Actual KDE/Wayland clicking and new installed-version telemetry
+  still need user-machine validation; Linux CI results are recorded with each
+  release. No inference benchmark or model load was triggered.
+
+The user's supplied screenshot shows the earlier application online with AMD
+GPU/VRAM/sensor readings, Ryzen 5 5600X identification, RAM and uptime. This is
+user-provided evidence of the running dashboard on the target setup, not a
+controlled accuracy, performance, or full desktop acceptance test. The installed
+Unsloth version and new activity endpoint were not identified by that screenshot.
+
+Local validation for this update: **219 passed, one Linux-only test skipped**
+on Windows/Python 3.14.6; Ruff passed. Packaged Linux and desktop handoff results
+are pending the new CI run. The controlled handoff uses a fixture terminal and
+does not establish native Konsole/Wayland behavior.
 
 ## Actual evidence
 
@@ -132,8 +161,8 @@ python3 scripts/diagnose.py
 ```
 
 Python 3.11+ and the standard library suffice. The script reads selected hardware,
-makes one bounded liveness GET, writes no files, installs nothing, changes no
-settings, and sends no inference content. An offline Unsloth result is acceptable
+makes bounded liveness and optional activity GETs, writes no files itself,
+installs nothing, changes no settings, and sends no inference content. An offline Unsloth result is acceptable
 on Fedora. Review the output before sharing and record the Fedora/kernel/session
 versions. Keep later CachyOS results separate, then launch this same dashboard
 in the computer's normal terminal.

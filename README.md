@@ -4,7 +4,9 @@ A lightweight Linux dashboard that runs **inside your normal terminal** and
 inherits its font, colors and transparency. Works with the terminal you already
 use—such as Konsole on CachyOS—without imitating its theme in a separate window.
 
-It passively reads Linux hardware and a verified Unsloth liveness interface.
+It reads Linux hardware, verified Unsloth liveness and an optional in-flight
+operation registry. Restrained colors use your terminal's palette; the compact
+hardware-first layout groups unavailable fields instead of repeating them.
 No prompts, model loading, compute runtimes, proxies, services, autostart entries
 or hardware changes. Quit exits the application and stops its collectors.
 
@@ -25,6 +27,10 @@ release notes, then run **inside your terminal**:
 chmod +x Unsloth-Monitor-x86_64.AppImage
 ./Unsloth-Monitor-x86_64.AppImage
 ```
+
+Once executable, you can also double-click the AppImage and choose **Run** if
+prompted. It opens the configured host terminal, with Konsole as the KDE fallback.
+Your file manager still controls execution permission and trust prompts.
 
 Every successful Linux package build on `main` or `codex/linux-prototype` now
 automatically publishes a versioned development prerelease with **one AppImage download**.
@@ -57,13 +63,17 @@ Endpoint and refresh settings are editable in the terminal; tokens are session-o
   and GPU/SoC power. Missing or denied readings stay unavailable.
 - Unsloth liveness, offline/authentication/unsupported-response states and
   automatic reconnect using bounded background workers.
+- Account-scoped in-flight operation count and active model labels when the
+  installed Unsloth version supports the route and authentication succeeds.
+  This can include loading, queued work and tools; it is not decode-only activity
+  or a loaded-model inventory. Press `s` to enter a token locally if required.
 - Sources and availability details. Five-second default polling; explicit quiet
   mode uses 30 seconds. The app cannot reliably detect a minimized terminal.
 
-Model, quantization, context, backend and inference counters currently remain
-unavailable. The lightweight liveness endpoint does not expose them; other
-reviewed upstream routes can scan model files or return inference-content
-previews. See [verified telemetry evidence](docs/TELEMETRY.md). GPU activity never
+Loaded-model residency, quantization, context, backend and token counters/rates
+remain unavailable. Other reviewed upstream routes can scan model files, run
+probes or return inference-content previews. Operation labels clear when tracked
+work ends and never substitute for loaded-model information. See [verified telemetry evidence](docs/TELEMETRY.md). GPU activity never
 implies generation or a ROCm backend.
 
 Windows hardware/terminal packaging is deferred until Linux is validated. A
@@ -76,12 +86,14 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 python -m ruff check src tests scripts
 python scripts/pty_smoke.py
+python scripts/launcher_smoke.py
 python3 scripts/diagnose.py
 ```
 
 The diagnostic needs only system Python 3.11+ and this checkout. It reads local
-hardware and makes one bounded liveness GET; it installs nothing, sends no prompts
-and writes no files. Review its JSON before sharing.
+hardware and performs bounded liveness and optional activity GETs; it installs
+nothing, sends no prompts and writes no files itself. Server authentication may
+perform its own bookkeeping; see the telemetry contract. Review its JSON before sharing.
 
 - [Specification and current UI amendment](PROJECT_SPEC.md), [agent guidance](AGENTS.md)
 - [Architecture](docs/ARCHITECTURE.md), [hardware](docs/HARDWARE.md), [telemetry](docs/TELEMETRY.md)

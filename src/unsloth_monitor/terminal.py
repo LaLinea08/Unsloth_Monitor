@@ -1,10 +1,11 @@
-"""Terminal-native dashboard; the terminal owns fonts and colors.
+"""Terminal-native dashboard using the terminal palette and default background.
 
 Curses is imported only when launching the interactive view. Pure rendering and
 fixture tests therefore also run on hosts without a curses implementation.
 """
 
 from datetime import datetime
+import os
 import math
 import time
 import unicodedata
@@ -74,6 +75,8 @@ def format_metric(metric: Metric) -> str:
         return f"{value:.0f} °C"
     if metric.unit == "%":
         return f"{value:.0f}%"
+    if metric.unit == "operations":
+        return f"{value:,.0f}"
     if metric.unit in ("tokens", ""):
         return f"{value:,.0f}" + (" tokens" if metric.unit else "")
     return f"{value:.1f} {_safe(metric.unit, 32)}"
@@ -95,9 +98,9 @@ def _bar(metric, width=18, total=None):
               and isinstance(total.value, (int, float)) and total.value > 0):
             percent = metric.value / total.value * 100
     if percent is None or not math.isfinite(percent):
-        return "[" + "?" * width + "]"
+        return "[" + "--".center(width) + "]"
     filled = round(min(100, max(0, percent)) / 100 * width)
-    return "[" + "#" * filled + "-" * (width - filled) + "]"
+    return "[" + "█" * filled + "·" * (width - filled) + "]"
 
 
 def _uptime(metric):
@@ -110,39 +113,73 @@ def _uptime(metric):
     return (f"{days}d " if days else "") + f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
+def _layout(width):
+    # Avoid stretching related values across an ultrawide terminal.
+    gutter = 2 if width >= 44 else 0
+    return max(0, min(100, width - gutter * 2)), gutter
+
+
 def _body_lines(hardware, connection, width):
     hw = hardware.metrics if hardware else {}
     api = connection.metrics if connection else {}
-    model = ["MODEL", f"Loaded: {_value(api, 'loaded_model', True)}",
-             f"Quantization: {_value(api, 'quantization', True)}",
-             f"Context limit: {_value(api, 'context_limit', True)}",
-             f"Backend: {_value(api, 'backend', True)}"]
-    inference = ["INFERENCE", f"State: {_value(api, 'generation_state', True)}",
-                 f"Output rate: {_value(api, 'output_tps', True)}",
-                 f"Output count: {_value(api, 'output_tokens', True)}",
-                 f"Duration: {_value(api, 'request_duration', True)}"]
-    if width >= 72:
-        left = (width - 3) // 2
-        lines = [_fit(a, left, pad=True) + " | " + b for a, b in zip(model, inference)]
-    else:
-        lines = model + [""] + inference
-    bar_width = min(22, max(4, width // 5))
-    lines += ["-" * width, f"GPU: {_value(hw, 'gpu_name')}",
-              f"GPU  {_bar(hw.get('gpu_utilization', Metric()), bar_width)}  "
-              f"{_value(hw, 'gpu_utilization')}",
-              f"VRAM {_bar(hw.get('vram_used', Metric()), bar_width, hw.get('vram_total', Metric()))}  "
-              f"{_value(hw, 'vram_used')} / {_value(hw, 'vram_total')}"]
-    sensors = [f"Temperature: {_value(hw, 'gpu_temperature')}",
-               f"GPU/SoC power: {_value(hw, 'gpu_power')}"]
-    lines.extend(["   ".join(sensors)] if width >= 72 else sensors)
-    lines += ["-" * width, f"CPU: {_value(hw, 'cpu_name')}"]
-    cpu = [f"CPU: {_value(hw, 'cpu_utilization')}", f"CPU sensor: {_value(hw, 'cpu_temperature')}"]
-    lines.extend(["   ".join(cpu)] if width >= 72 else cpu)
-    lines += [f"RAM: {_value(hw, 'ram_used')} / {_value(hw, 'ram_total')}",
+    bar_width = min(20, max(4, width // 5))
+    lines = [
+        "",
+        f"GPU  {_value(hw, 'gpu_name')}",
+        f"  Load  {_bar(hw.get('gpu_utilization', Metric()), bar_width)}  "
+        f"{_value(hw, 'gpu_utilization')}",
+        f"  VRAM  {_bar(hw.get('vram_used', Metric()), bar_width, hw.get('vram_total', Metric()))}  "
+        f"{_value(hw, 'vram_used')} / {_value(hw, 'vram_total')}",
+    ]
+    sensors = [f"Temp {_value(hw, 'gpu_temperature')}",
+               f"GPU/SoC power {_value(hw, 'gpu_power')}"]
+    lines.extend(["  " + "   ·   ".join(sensors)] if width >= 60
+                 else ["  " + item for item in sensors])
+    lines += [
+        "",
+        f"SYSTEM  {_value(hw, 'cpu_name')}",
+        f"  CPU   {_bar(hw.get('cpu_utilization', Metric()), bar_width)}  "
+        f"{_value(hw, 'cpu_utilization')}",
+        f"  RAM   {_bar(hw.get('ram_used', Metric()), bar_width, hw.get('ram_total', Metric()))}  "
+        f"{_value(hw, 'ram_used')} / {_value(hw, 'ram_total')}",
+    ]
+    system = [f"CPU temp {_value(hw, 'cpu_temperature')}",
               f"Uptime: {_uptime(hw.get('uptime', Metric()))}"]
-    if hardware:
-        stamp = datetime.fromtimestamp(hardware.timestamp).astimezone().strftime("%H:%M:%S")
-        lines.append(f"Hardware: {_safe(hardware.hostname or 'this host')} | sampled {stamp}")
+    lines.extend(["  " + "   ·   ".join(system)] if width >= 60
+                 else ["  " + item for item in system])
+    lines += ["", "UNSLOTH"]
+    fields = (
+        ("active_requests", "In-flight operations"), ("active_model", "Active model labels"),
+        ("loaded_model", "Loaded model"), ("quantization", "Quantization"),
+        ("context_limit", "Context limit"), ("backend", "Backend"),
+        ("generation_state", "Generation state"), ("output_tps", "Output rate"),
+        ("output_tokens", "Output count"), ("request_duration", "Duration"),
+    )
+    shown = [(key, label) for key, label in fields if key in api
+             and api[key].availability in (Availability.AVAILABLE, Availability.STALE)]
+    if shown:
+        for key, label in shown:
+            lines.extend("  " + part for part in _wrap(
+                f"{label}: {_value(api, key, True)}", max(1, width - 2)))
+        if any(key == "active_requests" for key, _ in shown):
+            lines.extend("  " + part for part in _wrap(
+                "Tracked operations include loading, queue and tool phases.",
+                max(1, width - 2)))
+        if len(shown) < len(fields):
+            lines.extend("  " + part for part in _wrap(
+                "Other model/inference details unavailable. Press d for sources.",
+                max(1, width - 2)))
+    else:
+        if api.get("active_requests", Metric()).availability == Availability.PERMISSION_DENIED:
+            lines.extend("  " + part for part in _wrap(
+                "Activity needs a Studio token or API key. Press s to enter it locally.",
+                max(1, width - 2)))
+        message = ("Model and inference details are not exposed by this connection."
+                   if connection and connection.status.value.startswith("online")
+                   else "Model and inference details unavailable.")
+        lines.extend("  " + part for part in _wrap(message, max(1, width - 2)))
+        lines.extend("  " + part for part in _wrap(
+            "Press d for individual fields, sources and availability.", max(1, width - 2)))
     return lines
 
 
@@ -150,6 +187,8 @@ def _detail_lines(hardware, connection, width):
     lines = ["SOURCES / UNITS / OBSERVATION TIME / STATE"]
     for heading, snapshot in (("HARDWARE (machine-wide)", hardware), ("UNSLOTH", connection)):
         lines += ["", heading]
+        if heading.startswith("HARDWARE") and snapshot and snapshot.hostname:
+            lines.extend(_wrap(f"Host: {_safe(snapshot.hostname)}", width))
         if snapshot is None:
             lines.append("Waiting for the first snapshot.")
             continue
@@ -170,27 +209,76 @@ def render_lines(hardware, connection, width: int, height: int, *, details=False
     width, height = max(0, min(int(width), 1000)), max(0, min(int(height), 500))
     if width == 0 or height == 0:
         return []
+    content_width, gutter = _layout(width)
     state = connection.status.value.upper() if connection else "CHECKING"
-    header = f"UNSLOTH MONITOR | {state}"
-    detail = connection.detail if connection else "Waiting for local hardware and Unsloth liveness."
+    header = f"UNSLOTH MONITOR  |  {state}"
+    mode = "quiet 30s" if quiet else f"refresh {interval}s"
+    detail = (connection.detail if connection else "Checking local Unsloth…") or "Local Unsloth"
+    if connection and connection.status.value.startswith("online"):
+        detail = f"Local Unsloth connected  ·  {mode}"
     if height == 1:
         return [_fit(header, width)]
     if height < 5:
         return [_fit(line, width) for line in [header, detail, "q quit | r refresh"][:height]]
-    body = (_detail_lines(hardware, connection, width) if details
-            else _body_lines(hardware, connection, width))
+    body = (_detail_lines(hardware, connection, content_width) if details
+            else _body_lines(hardware, connection, content_width))
     room = height - 4
     offset = max(0, min(int(offset), max(0, len(body) - room)))
     visible = body[offset:offset + room]
-    mode = "quiet 30s" if quiet else f"refresh {interval}s"
-    footer = "q quit  r refresh  s settings  i interval  p quiet  d sources"
-    if width < 65:
-        footer = "q quit r refresh s setup i rate p quiet d info"
-    note = message or f"{mode} | hardware is machine-wide | arrows/PgUp/PgDn scroll"
+    footer = "q quit  r refresh  s settings  i rate  p quiet  d sources"
+    if content_width < 65:
+        footer = "q quit  r  s  i  p  d sources"
+    stamp = (datetime.fromtimestamp(hardware.timestamp).astimezone().strftime("%H:%M:%S")
+             if hardware else "waiting")
+    note = message or f"{mode}  ·  hardware: this computer  ·  updated {stamp}"
     if offset or len(body) > room:
-        note = message or f"{mode} | rows {offset + 1}-{offset + len(visible)}/{len(body)} | arrows scroll"
+        note = message or f"{mode}  ·  rows {offset + 1}-{offset + len(visible)}/{len(body)}  ·  ↑↓ scroll"
     frame = [header, detail] + visible + [""] * max(0, room - len(visible)) + [footer, note]
-    return [_fit(line, width) for line in frame[:height]]
+    return [" " * gutter + _fit(line, content_width) for line in frame[:height]]
+
+
+def terminal_palette(curses):
+    """Use ANSI slots owned by the terminal, never change its palette/background."""
+    bold = getattr(curses, "A_BOLD", 0)
+    dim = getattr(curses, "A_DIM", 0)
+    palette = {"heading": bold, "good": bold, "warning": bold, "bad": bold,
+               "meter": 0, "memory": 0, "muted": dim}
+    try:
+        if not curses.has_colors():
+            return palette
+        curses.start_color()
+        curses.use_default_colors()
+        if "NO_COLOR" in os.environ:
+            return palette
+        for number, (role, color) in enumerate((
+                ("heading", curses.COLOR_CYAN), ("good", curses.COLOR_GREEN),
+                ("warning", curses.COLOR_YELLOW), ("bad", curses.COLOR_RED),
+                ("meter", curses.COLOR_CYAN), ("memory", curses.COLOR_MAGENTA)), start=1):
+            if number >= curses.COLOR_PAIRS or color >= curses.COLORS:
+                continue
+            curses.init_pair(number, color, -1)
+            palette[role] |= curses.color_pair(number)
+    except (curses.error, AttributeError):
+        # Limited terminals retain the full dashboard, with text/bold cues.
+        pass
+    return palette
+
+
+def line_role(line):
+    """Roles are presentation hints only; state is always printed as text."""
+    text = line.lstrip()
+    if text.startswith(("UNSLOTH MONITOR", "GPU  ", "SYSTEM  ", "CONNECTION SETTINGS",
+                        "HARDWARE (", "SOURCES /")) or text == "UNSLOTH":
+        return "heading"
+    if text.startswith(("Load  [", "CPU   [")):
+        return "meter"
+    if text.startswith(("VRAM  [", "RAM   [")):
+        return "memory"
+    if text.startswith(("q quit", "refresh ", "quiet ", "Local Unsloth", "Press d ",
+                        "Other model/", "Model and inference", "Tracked operations",
+                        "source:", "unit:")):
+        return "muted"
+    return ""
 
 
 class TerminalDashboard:
@@ -208,6 +296,7 @@ class TerminalDashboard:
         self.message = ""
         self.previous = None
         self.deadline = None
+        self.palette = {}
 
     def _dimensions(self):
         height, width = self.screen.getmaxyx()
@@ -223,7 +312,15 @@ class TerminalDashboard:
         self.screen.erase()
         for row, line in enumerate(lines[:size[0]]):
             try:
-                self.screen.addstr(row, 0, _fit(line, max(0, size[1] - 1)))
+                shown = _fit(line, max(0, size[1] - 1))
+                self.screen.addstr(row, 0, shown, self.palette.get(line_role(shown), 0))
+                if shown.lstrip().startswith("UNSLOTH MONITOR") and " | " in shown:
+                    start = shown.index("|") + 3
+                    state = shown[start:]
+                    role = ("good" if state.startswith("ONLINE") else
+                            "bad" if state.startswith("OFFLINE") else "warning")
+                    column = sum(_cells(char) for char in shown[:start])
+                    self.screen.addstr(row, column, state, self.palette.get(role, 0))
             except self.curses.error:
                 # The terminal can resize between getmaxyx and a write.
                 pass
@@ -316,12 +413,7 @@ class TerminalDashboard:
             self.curses.curs_set(0)
         except self.curses.error:
             pass
-        try:
-            # Preserve the terminal's own foreground/background, including any
-            # user transparency. No color pairs or fixed palette are defined.
-            self.curses.use_default_colors()
-        except self.curses.error:
-            pass
+        self.palette = terminal_palette(self.curses)
         try:
             while not self._expired():
                 # Input still wakes immediately; quiet mode reduces idle UI wakeups.
@@ -332,8 +424,9 @@ class TerminalDashboard:
                 if connection is not None:
                     self.connection = connection
                 width, height = self._dimensions()
-                body = (_detail_lines(self.hardware, self.connection, width) if self.details
-                        else _body_lines(self.hardware, self.connection, width))
+                content_width, _ = _layout(width)
+                body = (_detail_lines(self.hardware, self.connection, content_width) if self.details
+                        else _body_lines(self.hardware, self.connection, content_width))
                 self.offset = min(self.offset, max(0, len(body) - max(0, height - 4)))
                 self._draw(render_lines(self.hardware, self.connection, width, height,
                     details=self.details, offset=self.offset, quiet=self.controller.quiet,

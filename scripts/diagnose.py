@@ -3,6 +3,7 @@
 
 No installation, model requests, subprocesses, privileged reads, or files written.
 Output is deliberately selected metrics, never raw server response or environment.
+Active-operation model labels may appear; account, conversation and run IDs do not.
 """
 
 import argparse
@@ -63,8 +64,10 @@ def main():
                         "os_release": os_release},
         "hardware": {key: asdict(value) for key, value in hardware.metrics.items()},
         "connection": asdict(connection),
-        "limitations": ["Source-verified liveness only; installed Unsloth version is not identified.",
-                        "No model, inference content, token counts, or backend details are requested.",
+        "limitations": ["Source-verified liveness/activity; installed Unsloth version is not identified.",
+                        "Operation labels do not prove model residency or active token decoding.",
+                        "No inference content, token counts, or backend details are requested.",
+                        "Active-operation model labels may be private; review before sharing.",
                         "Hardware describes this computer only."],
     }
     print(json.dumps(result, indent=2, ensure_ascii=False))

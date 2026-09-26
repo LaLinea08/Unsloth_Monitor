@@ -7,11 +7,12 @@ CachyOS theme. No actual target Linux computer has yet been validated.
 
 | Environment | What actually ran | Status |
 | --- | --- | --- |
-| Windows 11 build 26200, AMD64; CPython 3.14.6 | Hardware fixtures, local HTTP fixtures, pure terminal rendering, simulated keyboard and runtime tests | Development validation only; interactive application and hardware telemetry are unsupported on Windows |
+| Windows 11 build 26200, AMD64; CPython 3.14.6 | Hardware fixtures, local HTTP fixtures, pure terminal rendering, simulated keyboard and runtime tests; 29 portable launcher boundary tests passed | Development validation only; interactive application and hardware telemetry are unsupported on Windows |
 | Fedora; Ryzen 7 9800X3D; Radeon RX 9070 XT | Nothing on this separate computer yet | User-provided target hardware; exact OS/kernel/session and readings unverified |
 | CachyOS; KDE Plasma/Wayland; Ryzen 5 5600X; Radeon RX 9060 XT 16 GB; 16 GB RAM | Nothing on this separate computer yet | Primary Unsloth and packaged-performance target; versions, API/auth, and readings unverified |
 | Ubuntu 22.04 x86_64 CI; Python 3.11.16 and 3.14.7 | 122 tests passed on each Python; actual curses source launch in a pseudo-terminal passed | Linux CI verified; target GPU and visible emulator behavior remain unverified |
 | Ubuntu 22.04 x86_64 AppImage baseline; Python 3.11 | AppImage built; extracted bundled payload launched through actual curses in a pseudo-terminal; no Qt in payload | Candidate package CI verified; normal AppImage mount/launch and target desktop acceptance remain pending |
+| Linux no-TTY desktop handoff; source and AppImage extract-and-run | Test-only terminal stand-in and real dashboard PTY smoke implemented | Pending CI execution for this revision; native file-manager clicks, Konsole/GNOME/Xfce and Wayland/X11 behavior remain unverified |
 | Other Linux distributions or terminal emulators | No execution yet | Candidates for later validation; no universal compatibility claim |
 | Windows packaged app; other architectures | No terminal port/package validation | Unsupported in this phase |
 
@@ -26,14 +27,20 @@ it does not prove the AppImage mount path or actual target desktop integration.
 
 ## Terminal and package requirements
 
-Launch inside an interactive terminal. The source version needs Python 3.11+
-with curses; the candidate AppImage is intended to bundle the runtime. The
+Launch inside an interactive terminal, or open the executable AppImage from a
+graphical desktop to start an installed terminal automatically. The source
+version needs Python 3.11+ with curses; the AppImage bundles the runtime. The
 terminal's `TERM` setting and matching host terminfo entry must be available.
-There is no pinned font or palette. An optional desktop entry uses the desktop's
-normal terminal launcher, but actual desktop integration is still unverified.
+There is no pinned font or palette. Desktop handoff prefers `xdg-terminal-exec`,
+supported existing terminal preferences and desktop-specific installed fallbacks;
+it neither installs nor changes a terminal. Executable permission and the file
+manager's policy for running downloaded programs still apply. An optional menu
+entry uses `Terminal=true`. Actual desktop integration is still unverified.
 Wayland/X11 rendering belongs to the host terminal emulator and must still be
 checked on each target desktop. A Linux pseudo-terminal test has no visible
-emulator and cannot establish font, theme, or window behavior.
+emulator and cannot establish font, theme, window behavior or real terminal-close
+handling. The new launcher smoke exercises no-TTY handoff and actual AppImage
+extract-and-run through a fixture emulator; it does not test the FUSE mount path.
 
 The portable build baseline is Ubuntu 22.04 x86_64. Systems with an older glibc
 than the build environment, non-glibc systems, and other architectures are
@@ -67,3 +74,8 @@ It needs Python 3.11+ and the standard library, installs nothing, changes no
 configuration, and sends no prompts. Unsloth offline on Fedora is acceptable.
 Later run it directly on CachyOS beside Unsloth; record the two machines
 separately. Localhost on Fedora never refers to the CachyOS computer.
+
+A user-provided screenshot shows the earlier monitor online with AMD GPU and
+Ryzen 5 5600X readings on the target setup. It is evidence of a visible running
+session, not controlled telemetry accuracy, performance, or new launcher/activity
+acceptance. Exact OS/terminal/Unsloth versions were not supplied in that image.

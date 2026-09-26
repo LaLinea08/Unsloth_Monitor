@@ -14,10 +14,14 @@ from unsloth_monitor.metrics import Availability, ConnectionStatus
 
 
 @contextmanager
-def server(payload=None, *, status=200, content_type="application/json", responder=None, port=0):
+def server(payload=None, *, status=200, content_type="application/json", responder=None, port=0,
+           activity=None, activity_status=None):
     calls = []
     current = {"payload": payload if payload is not None else
-               {"service": "Unsloth UI Backend", "status": "alive"}, "status": status}
+               {"service": "Unsloth UI Backend", "status": "alive"}, "status": status,
+               "activity": activity if activity is not None else {"detail": "not found"},
+               "activity_status": activity_status if activity_status is not None else
+               (200 if activity is not None else 404)}
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -42,10 +46,11 @@ def server(payload=None, *, status=200, content_type="application/json", respond
                 except (OSError, ValueError):
                     pass
                 return
-            body = current["payload"]
+            is_activity = self.path == "/api/inference/active-generations"
+            body = current["activity"] if is_activity else current["payload"]
             if not isinstance(body, bytes):
                 body = json.dumps(body).encode()
-            self.send_response(current["status"])
+            self.send_response(current["activity_status"] if is_activity else current["status"])
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             if current.get("close"):
@@ -94,7 +99,8 @@ def test_invalid_urls_rejected_without_echoing_secrets(value):
 
 def test_liveness_is_get_only_and_connection_reused(monkeypatch):
     monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
-    with server() as (url, calls, _current):
+    with server(activity={"active": [], "count": 0, "thread_ids": [], "parallel_slots": 1}
+                ) as (url, calls, _current):
         client = UnslothClient(url)
         try:
             first = client.poll()
@@ -102,10 +108,12 @@ def test_liveness_is_get_only_and_connection_reused(monkeypatch):
         finally:
             client.close()
         assert first.status == second.status == ConnectionStatus.ONLINE
-        assert [(c[0], c[1]) for c in calls] == [("GET", "/api/liveness")] * 2
-        assert calls[0][3] == calls[1][3]
-        assert all(metric.value is None for metric in first.metrics.values())
-        assert all(metric.availability == Availability.UNSUPPORTED for metric in first.metrics.values())
+        assert [(c[0], c[1]) for c in calls] == [
+            ("GET", "/api/liveness"), ("GET", "/api/inference/active-generations")] * 2
+        assert len({call[3] for call in calls}) == 1
+        assert first.metrics["active_requests"].value == 0
+        assert first.metrics["loaded_model"].value is None
+        assert first.metrics["loaded_model"].availability == Availability.UNSUPPORTED
         assert all(metric.source and metric.timestamp > 0 for metric in first.metrics.values())
         assert first.metrics["output_tps"].unit == "tokens/s"
 
@@ -247,3 +255,201 @@ def test_close_cancels_inflight_request():
 def test_token_rejects_header_injection(token):
     with pytest.raises(ValueError):
         UnslothClient(token=token)
+
+
+def activity_payload(*models):
+    return {
+        "active": [{"model": model, "kind": "chat", "started_at": 1000,
+                    "thread_id": "private-thread", "run_id": "private-run",
+                    "account_id": "private-account", "handle": "private-handle"}
+                   for model in models],
+        "count": len(models), "thread_ids": ["private-thread"] if models else [],
+        "parallel_slots": 2,
+    }
+
+
+def test_activity_is_scoped_not_loaded_or_decode_telemetry_and_discards_identifiers():
+    activity = activity_payload("org/model-A", "org/model-B", "org/model-A")
+    activity["active"][1]["kind"] = "tool"
+    with server(activity=activity) as (url, calls, _current):
+        client = UnslothClient(url, token="test-only-token")
+        try:
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.status == ConnectionStatus.ONLINE
+    assert result.metrics["active_requests"].value == 3
+    assert result.metrics["active_requests"].unit == "operations"
+    assert "account-scoped" in result.metrics["active_requests"].source
+    assert "loading, queued and tool" in result.metrics["active_requests"].detail
+    assert result.metrics["active_model"].value == "org/model-A; org/model-B"
+    for key in ("loaded_model", "generation_state", "output_tps", "output_tokens",
+                "request_duration", "backend", "context_limit", "quantization"):
+        assert result.metrics[key].value is None
+        assert result.metrics[key].availability == Availability.UNSUPPORTED
+    assert all(call[2]["Authorization"] == "Bearer test-only-token" for call in calls)
+    assert "private-" not in repr(result)
+    assert "test-only-token" not in repr(result)
+
+
+def test_activity_only_after_verified_service_identity():
+    with server({"status": "alive", "service": "another service"},
+                activity=activity_payload("not-a-loaded-model")) as (url, calls, _current):
+        client = UnslothClient(url)
+        try:
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.status == ConnectionStatus.API_REACHABLE
+    assert [call[1] for call in calls] == ["/api/liveness"]
+    assert result.metrics["active_requests"].value is None
+
+
+def test_activity_finishing_clears_model_labels_without_claiming_no_model_or_idle():
+    with server(activity=activity_payload("org/model")) as (url, _calls, current):
+        client = UnslothClient(url)
+        try:
+            assert client.poll().metrics["active_model"].value == "org/model"
+            current["activity"] = activity_payload()
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.status == ConnectionStatus.ONLINE
+    assert result.metrics["active_requests"].value == 0
+    assert result.metrics["active_model"].value is None
+    assert result.metrics["active_model"].availability == Availability.UNAVAILABLE
+    assert result.metrics["generation_state"].value is None
+    assert result.metrics["loaded_model"].value is None
+
+
+@pytest.mark.parametrize("status, availability", [
+    (401, Availability.PERMISSION_DENIED), (403, Availability.PERMISSION_DENIED),
+    (404, Availability.UNSUPPORTED), (302, Availability.UNSUPPORTED),
+    (503, Availability.UNSUPPORTED),
+])
+def test_optional_activity_failure_keeps_online_and_clears_previous_activity(status, availability):
+    with server(activity=activity_payload("org/model")) as (url, calls, current):
+        client = UnslothClient(url)
+        try:
+            assert client.poll().metrics["active_requests"].value == 1
+            current["activity_status"] = status
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.status == ConnectionStatus.ONLINE
+    assert len(calls) == 4
+    assert result.metrics["active_requests"].value is None
+    assert result.metrics["active_requests"].availability == availability
+    assert result.metrics["active_model"].value is None
+    assert result.metrics["active_requests"].detail
+
+
+@pytest.mark.parametrize("alter", [
+    lambda value: value.update(count=True),
+    lambda value: value.update(count=7),
+    lambda value: value.update(active={}),
+    lambda value: value.update(thread_ids=None),
+    lambda value: value.update(parallel_slots=0),
+    lambda value: value["active"][0].update(kind=None),
+    lambda value: value["active"][0].update(model=42),
+    lambda value: value["active"][0].update(model="bad\x1b[0m"),
+    lambda value: value["active"][0].update(model="x" * 513),
+])
+def test_changed_activity_schema_rejected_without_losing_liveness(alter):
+    activity = activity_payload("org/model")
+    alter(activity)
+    with server(activity=activity) as (url, _calls, _current):
+        client = UnslothClient(url)
+        try:
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.status == ConnectionStatus.ONLINE
+    assert result.metrics["active_requests"].availability == Availability.UNSUPPORTED
+    assert result.metrics["active_model"].value is None
+
+
+def test_activity_without_model_labels_keeps_true_count():
+    with server(activity=activity_payload(None, None)) as (url, _calls, _current):
+        client = UnslothClient(url)
+        try:
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.metrics["active_requests"].value == 2
+    assert result.metrics["active_model"].value is None
+
+
+def test_activity_displays_bounded_labels_but_preserves_full_operation_count():
+    with server(activity=activity_payload("a", "b", "c", "d", "e")) as (url, _calls, _current):
+        client = UnslothClient(url)
+        try:
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.metrics["active_requests"].value == 5
+    assert result.metrics["active_model"].value == "a; b; c; +2 other labels"
+
+
+def test_oversized_activity_response_is_bounded_and_does_not_erase_liveness():
+    with server(activity=b"x" * 40000) as (url, _calls, _current):
+        client = UnslothClient(url)
+        try:
+            result = client.poll()
+        finally:
+            client.close()
+    assert result.status == ConnectionStatus.ONLINE
+    assert result.metrics["active_requests"].availability == Availability.UNSUPPORTED
+
+
+def test_liveness_and_activity_share_overall_deadline():
+    def delayed(handler):
+        if handler.path == "/api/liveness":
+            time.sleep(0.18)
+            body = b'{"service":"Unsloth UI Backend","status":"alive"}'
+        else:
+            time.sleep(0.18)
+            body = json.dumps(activity_payload("org/model")).encode()
+        handler.send_response(200)
+        handler.send_header("Content-Type", "application/json")
+        handler.send_header("Content-Length", str(len(body)))
+        handler.end_headers()
+        handler.wfile.write(body)
+
+    with server(responder=delayed) as (url, calls, _current):
+        client = UnslothClient(url, timeout=0.3)
+        started = time.monotonic()
+        try:
+            result = client.poll()
+        finally:
+            client.close()
+        elapsed = time.monotonic() - started
+    assert len(calls) == 2
+    assert result.status == ConnectionStatus.ONLINE
+    assert result.metrics["active_requests"].availability == Availability.UNAVAILABLE
+    assert elapsed < 0.5
+
+
+def test_close_cancels_optional_activity_read():
+    activity_started = threading.Event()
+
+    def responder(handler):
+        if handler.path == "/api/liveness":
+            body = b'{"service":"Unsloth UI Backend","status":"alive"}'
+            handler.send_response(200)
+            handler.send_header("Content-Type", "application/json")
+            handler.send_header("Content-Length", str(len(body)))
+            handler.end_headers()
+            handler.wfile.write(body)
+        else:
+            activity_started.set()
+            time.sleep(1)
+
+    with server(responder=responder) as (url, _calls, _current):
+        client = UnslothClient(url)
+        worker = threading.Thread(target=client.poll)
+        worker.start()
+        assert activity_started.wait(timeout=1)
+        client.close()
+        worker.join(timeout=0.5)
+        assert not worker.is_alive()

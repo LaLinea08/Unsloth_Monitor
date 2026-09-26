@@ -2,6 +2,13 @@
 
 ## 0.1.0.dev0 — development prototype
 
+- Hardware-first terminal layout, restrained host-palette colors, readable-width
+  limit and grouped unavailable information with full source details on demand.
+- Optional verified in-flight operation counts and active model labels, with
+  explicit scope and authentication handling; no invented residency/token data.
+- Direct AppImage desktop launch opens the existing configured host terminal;
+  safe argument preservation, recursion prevention and packaged handoff tests.
+
 - Owner-authorized automatic public development prereleases after successful
   trusted-branch builds, with one AppImage asset and checksum/test evidence in
   notes. The project license remains undecided; stable acceptance is pending.
