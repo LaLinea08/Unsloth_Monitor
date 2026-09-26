@@ -40,10 +40,10 @@ error, unreadable, and unknown states leave these fields unavailable. VRAM
 accounting is still read. The state check cannot eliminate a suspend race or prove
 no idle-power effect; measure actual drivers on Fedora and CachyOS before making
 an overhead claim. Inputs are size-bounded, but Linux driver file reads have no
-general userspace timeout, so collection belongs off the GUI thread.
+general userspace timeout, so collection belongs off the terminal's input/render thread.
 
 The non-Linux factory returns explicit unsupported metrics. The Windows host
-used for initial development only exercises fixtures and Qt smoke tests; this
+used for local development exercises fixtures and portable runtime/render tests; this
 does not constitute a Windows telemetry port or Linux hardware validation.
 
 Primary references reviewed on 2026-09-26:

@@ -70,6 +70,8 @@ summaries without credentials or inference content.
 | --- | --- |
 | Initial terminal package `edbd92d`, default mode, synthetic PTY | 21.89 MiB mean tree RSS; 21.91 MiB peak; 0.219% of one logical CPU; 59.25 s measured after 10 s warm-up; one process; clean exit |
 | Initial terminal package `edbd92d`, quiet mode, synthetic PTY | 21.90 MiB mean tree RSS; 21.91 MiB peak; 0.219% of one logical CPU; 59.25 s measured after 10 s warm-up; one process; clean exit |
+| Final terminal package `abc2b39`, default mode, synthetic PTY | 21.96 MiB mean/peak tree RSS; 0.219% of one logical CPU; 59.25 s measured after 10 s warm-up; one process; clean exit |
+| Final terminal package `abc2b39`, quiet mode, synthetic PTY | 21.89 MiB mean/peak tree RSS; 0.051% of one logical CPU; 59.24 s measured after 10 s warm-up; one process; clean exit |
 | Current terminal runtime, actual Fedora terminal | Not run |
 | Packaged application, CachyOS normal/quiet modes | Not run |
 | Hours-long memory observation | Not run |
@@ -84,10 +86,17 @@ x86_64/glibc 2.35; bundled Python 3.11.16; TERM=xterm-256color, 32×100 syntheti
 PTY; default offline loopback endpoint; no target AMD GPU. The observer sampled
 once per second. Both runs were stable over this short interval, but did not
 demonstrate lower CPU in quiet mode. Idle UI wakeups were subsequently reduced
-from 500 ms to 2000 ms in quiet mode; final observations are recorded after the
-updated package is built. Keyboard input still wakes immediately. These are
+from 500 ms to 2000 ms in quiet mode; the final runs above use that refinement
+in the same CI environment. Keyboard input still wakes immediately. These are
 preliminary process figures, excluding terminal-emulator rendering; they are
 not a packaged CachyOS hosting-impact result or a long-session guarantee.
+
+The final package source is `abc2b392e892d01997fdc5f0106407a81a34d750`.
+[Build and observation evidence](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155)
+includes the raw reviewed JSON as temporary workflow artifacts. Normal-mode RSS
+was 21.95 MiB at the first steady sample and 21.96 MiB at the last; quiet-mode RSS
+was 21.88 MiB then 21.89 MiB. Startup sampled peaks were 21.95 and 21.88 MiB,
+respectively. These are single short runs, not statistical hosting comparisons.
 
 ## Later inference comparison
 

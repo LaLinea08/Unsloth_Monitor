@@ -10,7 +10,7 @@ CachyOS theme. No actual target Linux computer has yet been validated.
 | Windows 11 build 26200, AMD64; CPython 3.14.6 | Hardware fixtures, local HTTP fixtures, pure terminal rendering, simulated keyboard and runtime tests | Development validation only; interactive application and hardware telemetry are unsupported on Windows |
 | Fedora; Ryzen 7 9800X3D; Radeon RX 9070 XT | Nothing on this separate computer yet | User-provided target hardware; exact OS/kernel/session and readings unverified |
 | CachyOS; KDE Plasma/Wayland; Ryzen 5 5600X; Radeon RX 9060 XT 16 GB; 16 GB RAM | Nothing on this separate computer yet | Primary Unsloth and packaged-performance target; versions, API/auth, and readings unverified |
-| Ubuntu 22.04 x86_64 CI; Python 3.11.16 and 3.14.7 | 113 tests passed on each Python; actual curses source launch in a pseudo-terminal passed | Linux CI verified; target GPU and visible emulator behavior remain unverified |
+| Ubuntu 22.04 x86_64 CI; Python 3.11.16 and 3.14.7 | 122 tests passed on each Python; actual curses source launch in a pseudo-terminal passed | Linux CI verified; target GPU and visible emulator behavior remain unverified |
 | Ubuntu 22.04 x86_64 AppImage baseline; Python 3.11 | AppImage built; extracted bundled payload launched through actual curses in a pseudo-terminal; no Qt in payload | Candidate package CI verified; normal AppImage mount/launch and target desktop acceptance remain pending |
 | Other Linux distributions or terminal emulators | No execution yet | Candidates for later validation; no universal compatibility claim |
 | Windows packaged app; other architectures | No terminal port/package validation | Unsupported in this phase |

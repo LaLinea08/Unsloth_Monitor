@@ -51,7 +51,8 @@ A worker never overlaps its own polls. Refresh events coalesce, and each source
 has a single replaceable result slot rather than an executor queue. Hardware
 discovery is cached. Only current/last snapshots are retained: no unbounded
 history, charts, sample database, or periodic sample log exists. The curses view
-checks updates at most twice a second and does not redraw an unchanged frame.
+checks updates twice a second when idle in normal mode and every two seconds in
+quiet mode. Keyboard input wakes it immediately. An unchanged frame is not redrawn.
 
 The terminal cannot reliably detect when its emulator window is minimized.
 Press `p` for explicit quiet mode with 30-second polling, or `p` again to

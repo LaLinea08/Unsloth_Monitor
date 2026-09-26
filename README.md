@@ -16,7 +16,8 @@ See [current progress](docs/PROGRESS.md) for actual test/build results.
 ## Run on Linux
 
 The candidate AppImage bundles Python; users do not need pip or an environment.
-Download the latest successful build artifact from the
+Download the [verified terminal candidate](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155/artifacts/10913450556)
+(temporary artifact; GitHub sign-in may be required), or a newer successful build from the
 [Linux package workflow](https://github.com/LaLinea08/Unsloth_Monitor/actions/workflows/linux-package.yml),
 verify its SHA256SUMS, then run **inside your terminal**:
 

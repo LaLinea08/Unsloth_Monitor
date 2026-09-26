@@ -46,7 +46,8 @@ explicitly unsupported; portable tests do not establish a Windows port.
 
 - Current complete local terminal-era run: **121 passed, one Linux-only lock
   test skipped on Windows**. Ruff passed for the complete tree.
-- Ubuntu 22.04 x86_64 CI: **113 passed** on **Python 3.11.16** and **3.14.7**.
+- Ubuntu 22.04 x86_64 CI: **122 passed** on **Python 3.11.16** and **3.14.7**
+  at `abc2b39` ([checks](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025134)).
   Actual source curses launch in a pseudo-terminal passed on both versions.
 - Current terminal renderer/keyboard subset: **23 passed in 0.07 seconds**.
   Covers 80×24 layout, narrow/wide Unicode bounds, source details, control-character
@@ -71,10 +72,10 @@ explicitly unsupported; portable tests do not establish a Windows port.
 
 ## Performance and packaging
 
-Initial terminal package observation on Ubuntu 22.04 CI averaged 21.89 MiB tree
+Final terminal package observation on Ubuntu 22.04 CI averaged 21.96 MiB tree
 RSS and 0.219% of one logical CPU over 59.25 s after 10 s warm-up; one process,
-clean exit. Quiet mode had similar measured CPU, so idle UI wakeups were reduced
-for a follow-up package measurement. No actual target-GPU idle power, hours-long
+clean exit. After reducing quiet-mode idle UI wakeups, quiet averaged 21.89 MiB
+and 0.051% CPU over 59.24 s. No actual target-GPU idle power, hours-long
 memory or packaged CachyOS result exists. The ≤100 MiB RSS and <0.5% CPU targets
 are not target-machine acceptance claims. No inference benchmark was run.
 [PERFORMANCE.md](PERFORMANCE.md) distinguishes synthetic PTY observation from
@@ -82,10 +83,14 @@ actual emulator overhead and superseded Qt results.
 
 The Ubuntu 22.04 x86_64 / Python 3.11 AppImage candidate built successfully and
 its extracted bundled runtime passed a Linux pseudo-terminal smoke test without
-Qt. The initial terminal candidate was 17,132,024 bytes with SHA-256
-`cd864e8ffc78fc311459cc2468a7cc6704449bebbec7de5a82464fb29b500403`.
-This is a CI candidate, not actual target-desktop acceptance. The final quiet-mode
-refinement build will be recorded separately. Release remains
+Qt. The final terminal candidate at `abc2b39` is 17,132,024 bytes with SHA-256
+`920942126725475a4393f7632a7c7b523ff329dff9bdc3d3ba054470b8ac7dec`.
+[Final build passed](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155);
+[download candidate artifact](https://github.com/LaLinea08/Unsloth_Monitor/actions/runs/36264025155/artifacts/10913450556)
+(14-day retention, GitHub sign-in may be required). SHA256SUMS was corrected to
+verify from the artifact directory. Source is in
+[draft PR #1](https://github.com/LaLinea08/Unsloth_Monitor/pull/1).
+This is a CI candidate, not actual target-desktop acceptance. Release remains
 blocked on license confirmation and real-machine acceptance.
 
 ## Known limits
